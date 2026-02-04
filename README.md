@@ -36,7 +36,7 @@ The format is inspired by Martin Fowler's work on defining technical patterns, t
 1. [**Clean**](#clean) — Clean data is consistently accurate, complete, consistent, and valid.
 2. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
 3. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
-4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems, not assumed by AI consumers.
+4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems.
 5. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
 6. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
 
