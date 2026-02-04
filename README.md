@@ -31,7 +31,7 @@ The format is inspired by Martin Fowler's work on defining technical patterns, t
 
 *Special thanks...*
 
-## The Six Factors of AI-Ready Data
+## The Five Factors of AI-Ready Data
 
 1. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
 2. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
