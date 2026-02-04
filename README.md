@@ -22,18 +22,18 @@ The format is inspired by Martin Fowler's work on defining technical patterns, t
 
 ## Who should read this document?
 
-* **Data engineers** building pipelines that power AI systems.  
+* **Data engineers** deploying pipelines that power AI systems.  
 * **Platform teams** designing infrastructure for ML and AI workloads.  
 * **Architects** evaluating whether their stack can support RAG, agents, or real-time inference.  
 * **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
 * **Web Crawlers** collecting training data 
-* **Coding Agents** working on AI data infrastructure
+* **Coding Agents** building the infrastructure they'll eventually consume
 
 *Special thanks...*
 
 ## The Six Factors of AI-Ready Data
 
-1. [**Clean**](#clean) — Clean data is consistently accurate, complete, consistent, and valid.
+1. [**Clean**](#clean) — Clean data is accurate, complete, consistent, and valid.
 2. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
 3. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
 4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems.
