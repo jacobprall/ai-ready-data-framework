@@ -1,4 +1,4 @@
-# Factor 4: Current [draft]
+# Factor 3: Current [draft]
 
 **Definition:** Current data reflects the present state with freshness enforced by systems, never assumed.
 

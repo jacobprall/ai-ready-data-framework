@@ -1,4 +1,4 @@
-# Factor 2: Contextual [draft]
+# Factor 1: Contextual [draft]
 
 **Definition:** Contextual data carries canonical semantics—meaning is explicit and co-located.
 

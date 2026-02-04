@@ -33,22 +33,21 @@ The format is inspired by Martin Fowler's work on defining technical patterns, t
 
 ## The Six Factors of AI-Ready Data
 
-1. [**Clean**](#clean) — Clean data is accurate, complete, consistent, and valid.
-2. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
-3. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
-4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems.
-5. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
-6. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
+1. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
+2. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
+3. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems.
+4. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
+5. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
 
 These factors apply to any data system powering AI applications, regardless of tech stack.
 
 - [A Brief History of Data](content/history-of-data.md)
-- [Factor 1: Clean](content/factor-01-clean.md)
-- [Factor 2: Contextual](content/factor-02-contextual.md)
-- [Factor 3: Consumable](content/factor-03-consumable.md)
-- [Factor 4: Current](content/factor-04-current.md)
-- [Factor 5: Correlated](content/factor-05-correlated.md)
-- [Factor 6: Compliant](content/factor-06-compliant.md)
+- [Factor 0: Clean](content/factor-00-clean.md)
+- [Factor 1: Contextual](content/factor-01-contextual.md)
+- [Factor 2: Consumable](content/factor-02-consumable.md)
+- [Factor 3: Current](content/factor-03-current.md)
+- [Factor 4: Correlated](content/factor-04-correlated.md)
+- [Factor 5: Compliant](content/factor-05-compliant.md)
 
 
 ## Related Resources

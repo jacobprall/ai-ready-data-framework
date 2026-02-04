@@ -1,4 +1,4 @@
-# Factor 3: Consumable [draft]
+# Factor 2: Consumable [draft]
 
 **Definition:** Consumable data is served in the right format, at the right latencies, and at the right scale for AI workloads.
 

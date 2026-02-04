@@ -1,4 +1,4 @@
-# Factor 5: Correlated [draft]
+# Factor 4: Correlated [draft]
 
 **Definition:** Correlated data is traceable from its source to every decision it informs.
 

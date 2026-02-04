@@ -1,4 +1,4 @@
-# Factor 1: Clean [draft]
+# Factor 0: Clean [draft]
 
 **Definition:** Clean data is consistently accurate, complete, and free of errors.
 
