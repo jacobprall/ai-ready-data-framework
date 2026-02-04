@@ -10,8 +10,6 @@
 
 <p></p>
 
-*In the spirit of [12 Factor Apps](https://12factor.net/)*.  *The source for this project is public at https://github.com/humanlayer/12-factor-agents, and I welcome your feedback and contributions. Let's figure this out together!*
-
 # Introduction
 
 "AI-ready" remains one of the vaguest terms in enterprise technology.
