@@ -12,8 +12,6 @@
 
 # Introduction
 
-"AI-ready" remains one of the vaguest terms in enterprise technology.
-
 The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The six factors of AI-ready data provide criteria to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
 
 ## Background
