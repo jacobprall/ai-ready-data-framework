@@ -16,9 +16,7 @@ The **AI-Ready Data Framework** is an open standard that defines what "AI-ready"
 
 ## Background
 
-The contributors to this framework include practicing data engineers, ML practitioners, and platform architects who have built and operated AI systems across industries.
-
-This document synthesizes our collective experience building data systems that reliably power AI. Our goal is to help data practitioners design infrastructure that produces trustworthy AI decisions.
+The contributors to this framework include practicing data engineers, ML practitioners, and platform architects who have built and operated AI systems across industries. This document synthesizes our collective experience building data systems that power reliable and trustworthy AI systems.
 
 The format is inspired by Martin Fowler's work on defining technical patterns, the 12-Factor App methodology, and the 12 Factor Agent.
 
