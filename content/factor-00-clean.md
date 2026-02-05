@@ -1,6 +1,6 @@
 # Factor 0: Clean [draft]
 
-**Definition:** Clean data is consistently accurate, complete, and free of errors.
+**Definition:** Clean data is accurate, complete, valid, and free of errors.
 
 ## Why It Matters
 
