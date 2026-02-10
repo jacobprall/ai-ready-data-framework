@@ -77,8 +77,20 @@ def load_thresholds(thresholds_path: str | None = None) -> dict:
 # Execution
 # ---------------------------------------------------------------------------
 
-def execute_test(conn: Any, test: Test, thresholds: dict) -> TestResult:
-    """Execute a single test and return a scored result."""
+def execute_test(
+    conn: Any,
+    test: Test,
+    thresholds: dict,
+    user_context: Any | None = None,
+) -> TestResult:
+    """Execute a single test and return a scored result.
+
+    If a UserContext is provided, it influences scoring:
+    - nullable_by_design columns get relaxed null_rate thresholds
+    - false_positive_pii columns skip PII tests
+    - per-table freshness SLAs override default staleness thresholds
+    - accepted failures are annotated in the result detail
+    """
     sql = test.sql.strip()
 
     # Validate read-only
@@ -118,12 +130,18 @@ def execute_test(conn: Any, test: Test, thresholds: dict) -> TestResult:
     finally:
         cursor.close()
 
-    # Score
+    # Apply context-aware threshold overrides
     req_thresholds = _get_thresholds(thresholds, test.factor, test.requirement)
+    if user_context is not None:
+        req_thresholds = _apply_context_overrides(
+            req_thresholds, test, target, user_context
+        )
+
     levels = [level for level in ["L1", "L2", "L3"] if req_thresholds.get(level) is not None]
     result = _score(measured_value, req_thresholds, test.requirement)
 
     # Detail
+    context_notes: list[str] = []
     if error_detail:
         detail = f"Query failed: {error_detail}"
     elif measured_value is not None:
@@ -138,6 +156,12 @@ def execute_test(conn: Any, test: Test, thresholds: dict) -> TestResult:
         detail = f"Measured {measured_value:.4f}. {'; '.join(parts)}"
     else:
         detail = "No data returned"
+
+    # Annotate with context info
+    if user_context is not None:
+        annotations = _get_context_annotations(test, target, user_context)
+        if annotations:
+            detail += f" [{'; '.join(annotations)}]"
 
     return TestResult(
         name=test.name,
@@ -154,11 +178,16 @@ def execute_test(conn: Any, test: Test, thresholds: dict) -> TestResult:
     )
 
 
-def execute_all(conn: Any, tests: list[Test], thresholds: dict) -> list[TestResult]:
+def execute_all(
+    conn: Any,
+    tests: list[Test],
+    thresholds: dict,
+    user_context: Any | None = None,
+) -> list[TestResult]:
     """Execute all tests and return results."""
     results: list[TestResult] = []
     for test in tests:
-        result = execute_test(conn, test, thresholds)
+        result = execute_test(conn, test, thresholds, user_context=user_context)
         results.append(result)
     return results
 
@@ -220,3 +249,85 @@ def _score(measured_value: float | None, thresholds: dict[str, float | None], re
             else:
                 result[level] = "pass" if measured_value >= threshold else "fail"
     return result
+
+
+# ---------------------------------------------------------------------------
+# Context-aware overrides
+# ---------------------------------------------------------------------------
+
+def _parse_target_parts(target: str) -> tuple[str, str, str]:
+    """Parse a target string into (schema, table, column) parts.
+
+    Target formats vary: "schema.table.column", "schema.table", "test_name", etc.
+    Returns empty strings for unparseable parts.
+    """
+    parts = target.split(".")
+    if len(parts) >= 3:
+        return parts[0], parts[1], parts[2]
+    elif len(parts) == 2:
+        return parts[0], parts[1], ""
+    return "", "", ""
+
+
+def _apply_context_overrides(
+    req_thresholds: dict[str, float | None],
+    test: Test,
+    target: str,
+    user_context: Any,
+) -> dict[str, float | None]:
+    """Apply user context overrides to thresholds for a specific test.
+
+    Returns a copy of the thresholds with any overrides applied.
+    """
+    schema, table, column = _parse_target_parts(target)
+    overridden = dict(req_thresholds)
+
+    # Nullable-by-design: relax null_rate thresholds significantly
+    if test.requirement == "null_rate" and column:
+        if user_context.is_nullable_by_design(schema, table, column):
+            # Allow up to 100% nulls for intentionally nullable columns
+            overridden = {"L1": 1.0, "L2": 1.0, "L3": 0.50}
+
+    # False-positive PII: skip PII tests for confirmed non-PII columns
+    if test.requirement in ("pii_detection_rate", "pii_column_name_rate") and column:
+        if user_context.is_false_positive_pii(schema, table, column):
+            # Skip all levels -- this column is confirmed not-PII
+            overridden = {"L1": None, "L2": None, "L3": None}
+
+    # Per-table freshness SLAs: override staleness thresholds
+    if test.requirement == "max_staleness_hours" and table:
+        sla = user_context.get_freshness_sla(schema, table)
+        if sla is not None:
+            # Use the user's SLA as the threshold at all levels
+            overridden = {"L1": float(sla), "L2": float(sla), "L3": float(sla)}
+
+    return overridden
+
+
+def _get_context_annotations(test: Test, target: str, user_context: Any) -> list[str]:
+    """Get human-readable annotations from user context for a test result."""
+    schema, table, column = _parse_target_parts(target)
+    annotations: list[str] = []
+
+    if test.requirement == "null_rate" and column:
+        if user_context.is_nullable_by_design(schema, table, column):
+            annotations.append("nullable by design")
+
+    if test.requirement in ("pii_detection_rate", "pii_column_name_rate") and column:
+        if user_context.is_false_positive_pii(schema, table, column):
+            annotations.append("confirmed not PII")
+        elif user_context.is_confirmed_pii(schema, table, column):
+            annotations.append("confirmed PII")
+
+    if test.requirement == "max_staleness_hours" and table:
+        sla = user_context.get_freshness_sla(schema, table)
+        if sla is not None:
+            annotations.append(f"custom SLA: {sla}h")
+
+    if table and user_context.get_table_criticality(schema, table) == "critical":
+        annotations.append("critical table")
+
+    if user_context.is_failure_accepted(test.requirement, target):
+        annotations.append("previously accepted")
+
+    return annotations

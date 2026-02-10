@@ -32,7 +32,7 @@ pip install duckdb                       # DuckDB
 python -m agent.cli assess --connection "postgresql://user:pass@localhost/mydb"
 ```
 
-The agent works with any SQL database that supports `information_schema`. No vendor lock-in.
+The agent works with any SQL database that supports `information_schema`. 
 
 ## What's In This Repo
 

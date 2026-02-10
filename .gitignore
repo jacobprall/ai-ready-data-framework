@@ -29,3 +29,11 @@ data/
 *.log
 .env
 reports/
+
+# Test fixtures (generated, not committed)
+tests/fixtures/*.duckdb
+tests/fixtures/*.duckdb.wal
+
+# Assessment data
+.aird/
+*.manifest.md

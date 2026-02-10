@@ -309,7 +309,11 @@ def _detect_platform(conn: Any) -> str:
     return "generic"
 
 
-def discover(conn: Any, schemas: list[str] | None = None) -> DatabaseInventory:
+def discover(
+    conn: Any,
+    schemas: list[str] | None = None,
+    user_context: Any | None = None,
+) -> DatabaseInventory:
     """Discover tables and columns in the connected database.
 
     Uses only ANSI SQL and information_schema -- works on any SQL database.
@@ -317,6 +321,7 @@ def discover(conn: Any, schemas: list[str] | None = None) -> DatabaseInventory:
     Args:
         conn: A DB-API 2.0 compatible connection.
         schemas: Optional list of schemas to assess. If None, discovers all non-system schemas.
+        user_context: Optional UserContext with exclusions and overrides.
 
     Returns:
         A DatabaseInventory with all discovered tables and their column metadata.
@@ -329,6 +334,13 @@ def discover(conn: Any, schemas: list[str] | None = None) -> DatabaseInventory:
     inventory.detected_platform = platform
     if platform != "generic":
         inventory.available_providers.append(platform)
+
+    # Apply user-declared infrastructure context (overrides brittle probes)
+    if user_context is not None:
+        if user_context.has_otel and "otel" not in inventory.available_providers:
+            inventory.available_providers.append("otel")
+        if user_context.has_iceberg and "iceberg" not in inventory.available_providers:
+            inventory.available_providers.append("iceberg")
 
     cursor = conn.cursor()
 
@@ -344,6 +356,9 @@ def discover(conn: Any, schemas: list[str] | None = None) -> DatabaseInventory:
         name = row[2]
         table_type = row[3]
         if schemas and schema.lower() not in [s.lower() for s in schemas]:
+            continue
+        # Apply user context exclusions
+        if user_context is not None and user_context.is_table_excluded(schema, name):
             continue
         tables.append(TableInfo(catalog=catalog, schema=schema, name=name, table_type=table_type))
 
@@ -391,29 +406,31 @@ def discover(conn: Any, schemas: list[str] | None = None) -> DatabaseInventory:
 
     inventory.tables = tables
 
-    # Detect Iceberg support (try querying metadata tables)
-    if tables:
-        sample = tables[0]
-        try:
-            cursor.execute(f'SELECT * FROM "{sample.schema}"."{sample.name}".snapshots LIMIT 1')
-            cursor.fetchone()
-            inventory.available_providers.append("iceberg")
-        except Exception:
+    # Detect Iceberg support (skip probe if user already declared it)
+    if "iceberg" not in inventory.available_providers:
+        if tables:
+            sample = tables[0]
+            try:
+                cursor.execute(f'SELECT * FROM "{sample.schema}"."{sample.name}".snapshots LIMIT 1')
+                cursor.fetchone()
+                inventory.available_providers.append("iceberg")
+            except Exception:
+                inventory.unavailable_providers.append("iceberg")
+        else:
             inventory.unavailable_providers.append("iceberg")
 
-    # Detect OTEL data (try querying standard OTEL traces table)
-    otel_endpoint = os.environ.get("AIRD_OTEL_ENDPOINT")
-    if otel_endpoint:
-        # OTEL data is at a separate endpoint -- mark as available for the generator
-        inventory.available_providers.append("otel")
-    else:
-        # Try to find OTEL data in the current database
-        try:
-            cursor.execute("SELECT 1 FROM otel_traces LIMIT 1")
-            cursor.fetchone()
+    # Detect OTEL data (skip probe if user already declared it)
+    if "otel" not in inventory.available_providers:
+        otel_endpoint = os.environ.get("AIRD_OTEL_ENDPOINT")
+        if otel_endpoint:
             inventory.available_providers.append("otel")
-        except Exception:
-            inventory.unavailable_providers.append("otel")
+        else:
+            try:
+                cursor.execute("SELECT 1 FROM otel_traces LIMIT 1")
+                cursor.fetchone()
+                inventory.available_providers.append("otel")
+            except Exception:
+                inventory.unavailable_providers.append("otel")
 
     cursor.close()
     return inventory

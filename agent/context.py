@@ -1,0 +1,268 @@
+"""User context module: captures business context that enriches the assessment.
+
+The assessment agent can measure structural facts about a database (null rates,
+comment coverage, constraint presence) without any user input. But many
+assessment decisions require domain knowledge:
+
+    - Which columns intentionally allow nulls (nullable by design)
+    - Which columns actually contain PII vs. false-positive name matches
+    - Per-table freshness SLAs (some tables refresh hourly, others monthly)
+    - Which tables are critical for AI workloads vs. staging/scratch
+    - What the user is building toward (analytics, RAG, training)
+
+UserContext captures this knowledge and flows through the assessment pipeline.
+It is persisted per connection so users don't repeat themselves on re-runs.
+
+Storage location: ~/.aird/contexts/ (one YAML file per connection hash).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UserContext:
+    """Business context provided by the user to enrich the assessment.
+
+    Every field has a sensible default so the assessment works without
+    any user input (graceful degradation). Interactive mode populates
+    these fields through conversation.
+    """
+
+    # What the user is building toward: "L1" (Analytics), "L2" (RAG), "L3" (Training)
+    target_level: str | None = None
+
+    # Schemas and tables to exclude from assessment
+    excluded_schemas: list[str] = field(default_factory=list)
+    excluded_tables: list[str] = field(default_factory=list)
+
+    # PII context
+    known_pii_columns: list[str] = field(default_factory=list)      # confirmed PII (schema.table.column)
+    false_positive_pii: list[str] = field(default_factory=list)     # columns named like PII but aren't
+
+    # Null handling
+    nullable_by_design: list[str] = field(default_factory=list)     # columns where nulls are expected
+
+    # Table importance
+    table_criticality: dict[str, str] = field(default_factory=dict)  # fqn -> "critical" | "standard" | "low"
+
+    # Per-table freshness SLAs (hours)
+    freshness_slas: dict[str, int] = field(default_factory=dict)    # fqn -> max acceptable staleness hours
+
+    # Candidate key overrides
+    confirmed_keys: list[str] = field(default_factory=list)         # columns confirmed as unique keys
+    not_keys: list[str] = field(default_factory=list)               # columns that look like keys but aren't
+
+    # Infrastructure context
+    has_dbt: bool = False
+    has_catalog: bool = False
+    has_otel: bool = False
+    has_iceberg: bool = False
+
+    # Free-text context
+    known_issues: list[str] = field(default_factory=list)           # pain points the user already knows about
+    notes: str = ""                                                 # any other context
+
+    # Accepted failures from previous triage (requirement|target)
+    accepted_failures: list[str] = field(default_factory=list)
+
+    def is_table_excluded(self, schema: str, table_name: str) -> bool:
+        """Check if a table should be excluded from assessment."""
+        fqn = f"{schema}.{table_name}"
+        if schema.lower() in [s.lower() for s in self.excluded_schemas]:
+            return True
+        if fqn.lower() in [t.lower() for t in self.excluded_tables]:
+            return True
+        return False
+
+    def is_nullable_by_design(self, schema: str, table: str, column: str) -> bool:
+        """Check if a column is expected to have nulls."""
+        fqn = f"{schema}.{table}.{column}"
+        return fqn.lower() in [n.lower() for n in self.nullable_by_design]
+
+    def is_confirmed_pii(self, schema: str, table: str, column: str) -> bool:
+        """Check if a column is confirmed PII."""
+        fqn = f"{schema}.{table}.{column}"
+        return fqn.lower() in [p.lower() for p in self.known_pii_columns]
+
+    def is_false_positive_pii(self, schema: str, table: str, column: str) -> bool:
+        """Check if a column was flagged as PII but confirmed safe."""
+        fqn = f"{schema}.{table}.{column}"
+        return fqn.lower() in [p.lower() for p in self.false_positive_pii]
+
+    def is_confirmed_key(self, schema: str, table: str, column: str) -> bool:
+        """Check if a column is confirmed as a unique key."""
+        fqn = f"{schema}.{table}.{column}"
+        return fqn.lower() in [k.lower() for k in self.confirmed_keys]
+
+    def is_not_key(self, schema: str, table: str, column: str) -> bool:
+        """Check if a column was flagged as a key but confirmed not unique."""
+        fqn = f"{schema}.{table}.{column}"
+        return fqn.lower() in [k.lower() for k in self.not_keys]
+
+    def get_table_criticality(self, schema: str, table: str) -> str:
+        """Get the criticality level for a table. Defaults to 'standard'."""
+        fqn = f"{schema}.{table}"
+        return self.table_criticality.get(fqn, self.table_criticality.get(fqn.lower(), "standard"))
+
+    def get_freshness_sla(self, schema: str, table: str) -> int | None:
+        """Get the freshness SLA for a table in hours, or None for default."""
+        fqn = f"{schema}.{table}"
+        return self.freshness_slas.get(fqn, self.freshness_slas.get(fqn.lower()))
+
+    def is_failure_accepted(self, requirement: str, target: str) -> bool:
+        """Check if a specific failure was previously accepted by the user."""
+        key = f"{requirement}|{target}"
+        return key.lower() in [f.lower() for f in self.accepted_failures]
+
+
+# ---------------------------------------------------------------------------
+# Persistence (YAML)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_CONTEXT_DIR = Path.home() / ".aird" / "contexts"
+
+
+def _connection_hash(connection_string: str) -> str:
+    """Generate a stable hash for a connection string (credentials stripped)."""
+    # Strip credentials for hashing so the same DB gets the same context
+    from urllib.parse import urlparse, urlunparse
+    try:
+        parsed = urlparse(connection_string)
+        stripped = parsed._replace(netloc=parsed.hostname or "local")
+        normalized = urlunparse(stripped).lower()
+    except Exception:
+        normalized = connection_string.lower()
+    return hashlib.sha256(normalized.encode()).hexdigest()[:12]
+
+
+def context_path_for_connection(connection_string: str, context_dir: Path | None = None) -> Path:
+    """Get the context file path for a given connection string."""
+    base_dir = context_dir or _DEFAULT_CONTEXT_DIR
+    conn_hash = _connection_hash(connection_string)
+    return base_dir / f"context-{conn_hash}.yaml"
+
+
+def save_context(ctx: UserContext, path: Path) -> None:
+    """Save a UserContext to a YAML file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = _context_to_dict(ctx)
+    with open(path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def load_context(path: Path) -> UserContext:
+    """Load a UserContext from a YAML file. Returns default context if file doesn't exist."""
+    if not path.exists():
+        return UserContext()
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    if not data:
+        return UserContext()
+    return _dict_to_context(data)
+
+
+def merge_context(saved: UserContext, interactive: UserContext) -> UserContext:
+    """Merge interactive answers into a saved context.
+
+    Interactive values take precedence. Lists are unioned (deduplicated).
+    Dicts are merged with interactive values winning on conflict.
+    """
+    merged = UserContext()
+
+    # Scalars: interactive wins if set
+    merged.target_level = interactive.target_level or saved.target_level
+    merged.has_dbt = interactive.has_dbt or saved.has_dbt
+    merged.has_catalog = interactive.has_catalog or saved.has_catalog
+    merged.has_otel = interactive.has_otel or saved.has_otel
+    merged.has_iceberg = interactive.has_iceberg or saved.has_iceberg
+    merged.notes = interactive.notes or saved.notes
+
+    # Lists: union and deduplicate (case-insensitive)
+    list_fields = [
+        "excluded_schemas", "excluded_tables", "known_pii_columns",
+        "false_positive_pii", "nullable_by_design", "confirmed_keys",
+        "not_keys", "known_issues", "accepted_failures",
+    ]
+    for field_name in list_fields:
+        saved_list = getattr(saved, field_name)
+        interactive_list = getattr(interactive, field_name)
+        seen: set[str] = set()
+        merged_list: list[str] = []
+        for item in interactive_list + saved_list:
+            key = item.lower()
+            if key not in seen:
+                seen.add(key)
+                merged_list.append(item)
+        setattr(merged, field_name, merged_list)
+
+    # Dicts: merge with interactive winning
+    dict_fields = ["table_criticality", "freshness_slas"]
+    for field_name in dict_fields:
+        saved_dict = getattr(saved, field_name)
+        interactive_dict = getattr(interactive, field_name)
+        merged_dict = {**saved_dict, **interactive_dict}
+        setattr(merged, field_name, merged_dict)
+
+    return merged
+
+
+# ---------------------------------------------------------------------------
+# Serialization helpers
+# ---------------------------------------------------------------------------
+
+def _context_to_dict(ctx: UserContext) -> dict[str, Any]:
+    """Convert a UserContext to a plain dict for YAML serialization."""
+    return {
+        "target_level": ctx.target_level,
+        "excluded_schemas": ctx.excluded_schemas,
+        "excluded_tables": ctx.excluded_tables,
+        "known_pii_columns": ctx.known_pii_columns,
+        "false_positive_pii": ctx.false_positive_pii,
+        "nullable_by_design": ctx.nullable_by_design,
+        "table_criticality": ctx.table_criticality,
+        "freshness_slas": ctx.freshness_slas,
+        "confirmed_keys": ctx.confirmed_keys,
+        "not_keys": ctx.not_keys,
+        "has_dbt": ctx.has_dbt,
+        "has_catalog": ctx.has_catalog,
+        "has_otel": ctx.has_otel,
+        "has_iceberg": ctx.has_iceberg,
+        "known_issues": ctx.known_issues,
+        "notes": ctx.notes,
+        "accepted_failures": ctx.accepted_failures,
+    }
+
+
+def _dict_to_context(data: dict[str, Any]) -> UserContext:
+    """Convert a plain dict (from YAML) to a UserContext."""
+    return UserContext(
+        target_level=data.get("target_level"),
+        excluded_schemas=data.get("excluded_schemas", []),
+        excluded_tables=data.get("excluded_tables", []),
+        known_pii_columns=data.get("known_pii_columns", []),
+        false_positive_pii=data.get("false_positive_pii", []),
+        nullable_by_design=data.get("nullable_by_design", []),
+        table_criticality=data.get("table_criticality", {}),
+        freshness_slas=data.get("freshness_slas", {}),
+        confirmed_keys=data.get("confirmed_keys", []),
+        not_keys=data.get("not_keys", []),
+        has_dbt=data.get("has_dbt", False),
+        has_catalog=data.get("has_catalog", False),
+        has_otel=data.get("has_otel", False),
+        has_iceberg=data.get("has_iceberg", False),
+        known_issues=data.get("known_issues", []),
+        notes=data.get("notes", ""),
+        accepted_failures=data.get("accepted_failures", []),
+    )

@@ -15,6 +15,7 @@ def build_report(
     inventory: DatabaseInventory,
     connection_string: str,
     suite_platform: str = "common",
+    user_context: Any | None = None,
 ) -> dict[str, Any]:
     """Build a full assessment report from test results.
 
@@ -23,6 +24,7 @@ def build_report(
         inventory: The discovered database inventory.
         connection_string: The original connection string (will be sanitized).
         suite_platform: The suite that was used for the assessment.
+        user_context: Optional UserContext with business context.
 
     Returns:
         A report dict conforming to agent/schema/report.json.
@@ -37,6 +39,11 @@ def build_report(
         "not_assessed": _build_not_assessed(inventory),
         "tests": [_result_to_dict(r) for r in results],
     }
+
+    # Add user context section if provided
+    if user_context is not None:
+        report["user_context"] = _build_user_context_section(user_context, results)
+
     return report
 
 
@@ -166,3 +173,86 @@ def _result_to_dict(result: TestResult) -> dict:
         "detail": result.detail,
         "query": result.query,
     }
+
+
+def _build_user_context_section(user_context: Any, results: list[TestResult]) -> dict:
+    """Build the user_context section of the report.
+
+    Documents what business context was applied and how it influenced the
+    assessment. This provides an audit trail of user decisions.
+    """
+    section: dict[str, Any] = {}
+
+    # Target level
+    if user_context.target_level:
+        section["target_level"] = user_context.target_level
+
+    # Scope decisions
+    scope: dict[str, Any] = {}
+    if user_context.excluded_schemas:
+        scope["excluded_schemas"] = user_context.excluded_schemas
+    if user_context.excluded_tables:
+        scope["excluded_tables"] = user_context.excluded_tables
+    if scope:
+        section["scope_decisions"] = scope
+
+    # Table criticality
+    critical_tables = {k: v for k, v in user_context.table_criticality.items() if v == "critical"}
+    if critical_tables:
+        section["critical_tables"] = list(critical_tables.keys())
+
+    # PII decisions
+    pii: dict[str, Any] = {}
+    if user_context.known_pii_columns:
+        pii["confirmed_pii"] = user_context.known_pii_columns
+    if user_context.false_positive_pii:
+        pii["confirmed_not_pii"] = user_context.false_positive_pii
+    if pii:
+        section["pii_decisions"] = pii
+
+    # Null handling
+    if user_context.nullable_by_design:
+        section["nullable_by_design"] = user_context.nullable_by_design
+
+    # Freshness SLAs
+    if user_context.freshness_slas:
+        section["freshness_slas"] = user_context.freshness_slas
+
+    # Key decisions
+    keys: dict[str, Any] = {}
+    if user_context.confirmed_keys:
+        keys["confirmed_keys"] = user_context.confirmed_keys
+    if user_context.not_keys:
+        keys["confirmed_not_keys"] = user_context.not_keys
+    if keys:
+        section["key_decisions"] = keys
+
+    # Accepted failures
+    if user_context.accepted_failures:
+        section["accepted_failures"] = user_context.accepted_failures
+
+    # Count how many results were influenced by context
+    context_influenced = sum(
+        1 for r in results
+        if any(tag in r.detail for tag in [
+            "nullable by design", "confirmed not PII", "confirmed PII",
+            "custom SLA", "critical table", "previously accepted",
+        ])
+    )
+    if context_influenced > 0:
+        section["tests_influenced"] = context_influenced
+
+    # Infrastructure context
+    infra: dict[str, bool] = {}
+    if user_context.has_dbt:
+        infra["dbt"] = True
+    if user_context.has_catalog:
+        infra["data_catalog"] = True
+    if user_context.has_otel:
+        infra["opentelemetry"] = True
+    if user_context.has_iceberg:
+        infra["iceberg"] = True
+    if infra:
+        section["infrastructure"] = infra
+
+    return section
