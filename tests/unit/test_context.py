@@ -30,6 +30,72 @@ class TestUserContextLookups:
     def test_is_table_not_excluded(self, sample_context):
         assert sample_context.is_table_excluded("analytics", "orders") is False
 
+
+class TestInclusionScoping:
+    """Tests for the inclusion-first scoping model."""
+
+    def test_default_scope_mode_includes_all(self):
+        ctx = UserContext()
+        assert ctx.is_table_included("any", "table") is True
+        assert ctx.is_table_excluded("any", "table") is False
+
+    def test_include_mode_filters_to_listed_tables(self):
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["analytics.orders", "analytics.customers"],
+        )
+        assert ctx.is_table_included("analytics", "orders") is True
+        assert ctx.is_table_included("analytics", "customers") is True
+        assert ctx.is_table_included("analytics", "events") is False
+
+    def test_include_mode_excluded_means_not_in_list(self):
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["analytics.orders"],
+        )
+        # events is not in the inclusion list, so it's excluded
+        assert ctx.is_table_excluded("analytics", "events") is True
+        # orders IS in the list, so it's not excluded
+        assert ctx.is_table_excluded("analytics", "orders") is False
+
+    def test_include_mode_exclusions_still_apply(self):
+        """Even in include mode, explicit exclusions take precedence."""
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["analytics.orders", "analytics.debug"],
+            excluded_tables=["analytics.debug"],
+        )
+        assert ctx.is_table_excluded("analytics", "orders") is False
+        assert ctx.is_table_excluded("analytics", "debug") is True  # excluded wins
+
+    def test_include_mode_schema_exclusion_still_applies(self):
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["staging.temp_orders"],
+            excluded_schemas=["staging"],
+        )
+        assert ctx.is_table_excluded("staging", "temp_orders") is True  # schema excluded
+
+    def test_include_mode_case_insensitive(self):
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["Analytics.Orders"],
+        )
+        assert ctx.is_table_included("analytics", "orders") is True
+
+    def test_include_mode_empty_list_includes_all(self):
+        """If scope_mode is 'include' but list is empty, include everything."""
+        ctx = UserContext(scope_mode="include", included_tables=[])
+        assert ctx.is_table_included("analytics", "anything") is True
+
+    def test_all_mode_ignores_included_tables(self):
+        """In 'all' mode, included_tables is ignored."""
+        ctx = UserContext(
+            scope_mode="all",
+            included_tables=["analytics.orders"],
+        )
+        assert ctx.is_table_included("analytics", "events") is True
+
     def test_is_nullable_by_design(self, sample_context):
         assert sample_context.is_nullable_by_design("analytics", "customers", "middle_name") is True
 
@@ -116,6 +182,26 @@ class TestMergeContext:
         merged = merge_context(saved, interactive)
         assert merged.infrastructure == {"dbt", "catalog", "otel"}
 
+    def test_merge_included_tables_unioned(self):
+        saved = UserContext(scope_mode="include", included_tables=["analytics.orders"])
+        interactive = UserContext(scope_mode="include", included_tables=["ml.features"])
+        merged = merge_context(saved, interactive)
+        assert "analytics.orders" in merged.included_tables
+        assert "ml.features" in merged.included_tables
+        assert merged.scope_mode == "include"
+
+    def test_merge_scope_mode_interactive_wins_when_tables_provided(self):
+        saved = UserContext(scope_mode="all")
+        interactive = UserContext(scope_mode="include", included_tables=["analytics.orders"])
+        merged = merge_context(saved, interactive)
+        assert merged.scope_mode == "include"
+
+    def test_merge_scope_mode_saved_when_no_interactive_tables(self):
+        saved = UserContext(scope_mode="include", included_tables=["analytics.orders"])
+        interactive = UserContext()
+        merged = merge_context(saved, interactive)
+        assert merged.scope_mode == "include"
+
     def test_infrastructure_backward_compat_properties(self):
         """Legacy has_dbt/has_otel properties still work."""
         ctx = UserContext(infrastructure={"dbt", "otel"})
@@ -144,12 +230,24 @@ class TestSerialization:
         d = _context_to_dict(sample_context)
         restored = _dict_to_context(d)
         assert restored.target_level == sample_context.target_level
+        assert restored.scope_mode == sample_context.scope_mode
+        assert restored.included_tables == sample_context.included_tables
         assert restored.excluded_schemas == sample_context.excluded_schemas
         assert restored.known_pii_columns == sample_context.known_pii_columns
         assert restored.freshness_slas == sample_context.freshness_slas
         assert restored.table_criticality == sample_context.table_criticality
         assert restored.infrastructure == sample_context.infrastructure
         assert restored.accepted_failures == sample_context.accepted_failures
+
+    def test_round_trip_inclusion_mode(self):
+        ctx = UserContext(
+            scope_mode="include",
+            included_tables=["analytics.orders", "ml.features"],
+        )
+        d = _context_to_dict(ctx)
+        restored = _dict_to_context(d)
+        assert restored.scope_mode == "include"
+        assert restored.included_tables == ["analytics.orders", "ml.features"]
 
     def test_empty_context_round_trip(self, empty_context):
         d = _context_to_dict(empty_context)

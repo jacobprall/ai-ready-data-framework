@@ -1,22 +1,26 @@
-"""Discovery module: connects to a database and enumerates schemas, tables, and columns.
+"""Discovery module: connects to a data source and enumerates schemas, tables, and columns.
 
 SAFETY: The assessment agent is strictly read-only. This is enforced at two layers:
 
     1. Connection layer: where the driver supports it, the connection is opened in
        read-only mode (e.g., PostgreSQL SET default_transaction_read_only = ON).
-    2. Execution layer: every SQL statement is validated before execution -- only
-       SELECT, DESCRIBE, SHOW, EXPLAIN, and WITH are permitted (see execute.py).
+    2. Execution layer: for SQL platforms, every statement is validated before
+       execution -- only SELECT, DESCRIBE, SHOW, EXPLAIN, and WITH are permitted
+       (see execute.py). Non-SQL platforms enforce read-only via their own
+       connection options (e.g., MongoDB read preference).
 
 Users should also grant the agent a read-only database role as a third layer of defense.
 
-The core agent uses DB-API 2.0 connections and ANSI SQL. It does not depend on
-any specific database driver. Drivers are installed separately by the user:
+For SQL platforms, the core agent uses DB-API 2.0 connections and ANSI SQL via
+information_schema. For non-SQL platforms (MongoDB, Elasticsearch, etc.), the
+platform registers a custom discover_fn that handles native introspection.
+
+Built-in drivers:
 
     pip install snowflake-connector-python   # Snowflake
     pip install duckdb                       # DuckDB
 
-Community platforms (PostgreSQL, Databricks, etc.) can be added via the platform
-registry -- see CONTRIBUTING.md and examples/community-suites/.
+Community platforms can be added via the platform registry -- see CONTRIBUTING.md.
 
 The connect() function auto-detects the driver from the connection string scheme.
 """
@@ -172,26 +176,48 @@ def discover(
     schemas: list[str] | None = None,
     user_context: Any | None = None,
 ) -> DatabaseInventory:
-    """Discover tables and columns in the connected database.
+    """Discover tables/collections and columns/fields in the connected data source.
 
-    Uses only ANSI SQL and information_schema -- works on any SQL database.
+    For SQL platforms: uses ANSI SQL and information_schema (works on any SQL database).
+    For non-SQL platforms: delegates to the platform's registered discover_fn.
 
     Args:
-        conn: A DB-API 2.0 compatible connection.
-        schemas: Optional list of schemas to assess. If None, discovers all non-system schemas.
+        conn: A connection object (DB-API 2.0 for SQL, native client for others).
+        schemas: Optional list of schemas/databases to assess.
         user_context: Optional UserContext with exclusions and overrides.
 
     Returns:
-        A DatabaseInventory with all discovered tables and their column metadata.
+        A DatabaseInventory with all discovered tables/collections and metadata.
     """
+    # Detect platform first
+    platform_name = detect_platform(conn)
+    platform_obj = get_platform(platform_name) if platform_name != "generic" else None
+
+    # Non-SQL platforms with a custom discover_fn: delegate entirely
+    if platform_obj and platform_obj.discover_fn is not None:
+        inventory = platform_obj.discover_fn(conn, schemas, user_context)
+        inventory.detected_platform = platform_name
+        if platform_name not in inventory.available_providers:
+            inventory.available_providers.append(platform_name)
+        return inventory
+
+    # SQL path: ANSI information_schema discovery
+    return _discover_sql(conn, schemas, user_context, platform_name)
+
+
+def _discover_sql(
+    conn: Any,
+    schemas: list[str] | None,
+    user_context: Any | None,
+    platform_name: str,
+) -> DatabaseInventory:
+    """SQL-based discovery via information_schema (original path)."""
     inventory = DatabaseInventory()
     inventory.available_providers = ["ansi-sql", "information-schema"]
+    inventory.detected_platform = platform_name
 
-    # Detect platform for optional enrichment (uses centralized registry)
-    platform = detect_platform(conn)
-    inventory.detected_platform = platform
-    if platform != "generic":
-        inventory.available_providers.append(platform)
+    if platform_name != "generic":
+        inventory.available_providers.append(platform_name)
 
     # Apply user-declared infrastructure context (overrides brittle probes)
     if user_context is not None:

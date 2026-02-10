@@ -1,10 +1,10 @@
 # Contributing
 
-We welcome contributions to both the framework content and the assessment agent. The most impactful contribution is **adding support for a new database platform**.
+We welcome contributions to both the framework content and the assessment agent. The most impactful contribution is **adding support for a new data platform** -- SQL or non-SQL.
 
-## Adding a New Platform
+## Adding a New SQL Platform
 
-The agent ships with built-in support for Snowflake and DuckDB. Community platforms live in `examples/community-suites/`. Here's how to add one.
+The agent ships with built-in support for Snowflake and DuckDB. Community platforms live in `examples/community-suites/`. Here's how to add a SQL-based one.
 
 ### Step 1: Create a registration file
 
@@ -82,7 +82,7 @@ class MyPlatformSuite(CommonSuite):
                 target_type="database",
                 platform=self.platform,
                 description="What this test measures",
-                sql="SELECT ... FROM my_platform_system_table",
+                query="SELECT ... FROM my_platform_system_table",
             ),
         ])
         return tests
@@ -98,6 +98,153 @@ Then set `suite_class` in your registration:
 ```python
 suite_class="examples.community_suites.myplatform_suite:MyPlatformSuite",
 ```
+
+---
+
+## Adding a Non-SQL Platform (MongoDB, Elasticsearch, etc.)
+
+The framework factors are data-source-agnostic. Non-SQL platforms participate in the same scoring and reporting pipeline -- they just use different query languages and discovery mechanisms.
+
+### Step 1: Register a query handler
+
+Tell the executor how to run your platform's native query language:
+
+```python
+from agent.execute import register_query_handler
+
+def mongo_handler(conn, pipeline_json: str) -> float | None:
+    """Execute a MongoDB aggregation pipeline and return measured_value."""
+    import json
+    pipeline = json.loads(pipeline_json)
+    # pipeline[0] is the collection name, pipeline[1:] is the pipeline
+    collection_name = pipeline[0]
+    stages = pipeline[1:]
+    db = conn.get_default_database()
+    result = list(db[collection_name].aggregate(stages))
+    if result:
+        return float(result[0].get("measured_value", 0))
+    return None
+
+register_query_handler("mongo_agg", mongo_handler)
+```
+
+### Step 2: Register the platform with custom detection and discovery
+
+Non-SQL platforms use `detect_fn` instead of `detect_sql`, and `discover_fn` instead of `information_schema`:
+
+```python
+from agent.platforms import Platform, register_platform
+from agent.discover import ColumnInfo, DatabaseInventory, TableInfo
+
+
+def _connect_mongo(connection_string: str):
+    from pymongo import MongoClient
+    return MongoClient(connection_string)
+
+
+def _detect_mongo(conn) -> bool:
+    """Return True if this connection is a MongoDB client."""
+    return hasattr(conn, "server_info")
+
+
+def _discover_mongo(conn, schemas, user_context) -> DatabaseInventory:
+    """Discover collections and infer fields by sampling documents."""
+    db = conn.get_default_database()
+    inventory = DatabaseInventory()
+    inventory.available_providers = ["mongodb"]
+
+    for coll_name in db.list_collection_names():
+        if user_context and user_context.is_table_excluded("default", coll_name):
+            continue
+        sample = db[coll_name].find_one() or {}
+        columns = []
+        for i, (key, val) in enumerate(sample.items()):
+            columns.append(ColumnInfo(
+                name=key,
+                data_type=type(val).__name__,
+                is_nullable=True,   # MongoDB fields are always optional
+                column_default=None,
+                ordinal_position=i,
+            ))
+        inventory.tables.append(TableInfo(
+            catalog="", schema="default", name=coll_name,
+            table_type="COLLECTION", columns=columns,
+        ))
+
+    return inventory
+
+
+register_platform(Platform(
+    name="mongodb",
+    schemes=["mongodb", "mongodb+srv"],
+    driver_package="pymongo",
+    driver_install="pip install pymongo",
+    connect_fn=_connect_mongo,
+    query_type="mongo_agg",
+    detect_fn=_detect_mongo,
+    discover_fn=_discover_mongo,
+    suite_class="examples.community_suites.mongodb:MongoDBSuite",
+    connection_format="mongodb://user:pass@host:27017/dbname",
+))
+```
+
+### Step 3: Create a suite
+
+Non-SQL suites extend `Suite` directly (not `CommonSuite`):
+
+```python
+from agent.suites.base import Suite, Test
+from agent.discover import ColumnInfo, DatabaseInventory, TableInfo
+import json
+
+
+class MongoDBSuite(Suite):
+
+    @property
+    def platform(self) -> str:
+        return "mongodb"
+
+    @property
+    def description(self) -> str:
+        return "MongoDB assessment using aggregation pipelines."
+
+    def database_tests(self, inventory: DatabaseInventory) -> list[Test]:
+        return []  # Add database-level tests
+
+    def table_tests(self, table: TableInfo) -> list[Test]:
+        # "table" is actually a collection in MongoDB
+        pipeline = json.dumps([
+            table.name,
+            {"$group": {"_id": None, "total": {"$sum": 1},
+                        "nulls": {"$sum": {"$cond": [{"$eq": ["$_id", None]}, 1, 0]}}}},
+            {"$project": {"measured_value": {"$divide": ["$nulls", "$total"]}}}
+        ])
+        return [
+            Test(
+                name="null_rate",
+                factor="clean",
+                requirement="null_rate",
+                query=pipeline,
+                target_type="collection",
+                query_type="mongo_agg",
+                platform=self.platform,
+            )
+        ]
+
+    def column_tests(self, table: TableInfo, column: ColumnInfo) -> list[Test]:
+        return []  # Add per-field tests
+```
+
+### Key differences for non-SQL platforms
+
+| Aspect | SQL platforms | Non-SQL platforms |
+|---|---|---|
+| `query_type` | `"sql"` (default) | `"mongo_agg"`, `"python"`, etc. |
+| Detection | `detect_sql` + `detect_match` | `detect_fn` callable |
+| Discovery | `information_schema` (automatic) | `discover_fn` callable |
+| Suite base | Extend `CommonSuite` | Extend `Suite` directly |
+| Read-only | SQL validation in executor | Enforce in `connect_fn` |
+| `target_type` | `"database"`, `"table"`, `"column"` | Also `"collection"` |
 
 ### Step 3: Add thresholds (if new requirements)
 
@@ -146,12 +293,12 @@ Add your files to `examples/community-suites/` and submit a PR. Include:
 
 ## Adding Tests to an Existing Suite
 
-1. Add `Test()` entries in the appropriate method (`database_tests`, `table_tests`, or `column_tests`)
+1. Add `Test()` entries in the appropriate method (`database_tests`, `table_tests`, or `column_tests`). Use `query=` for the test logic and `query_type=` if not SQL.
 2. Add default thresholds to `agent/schema/thresholds-default.json` with a `direction` field
 3. Add a remediation template to `agent/remediation/` (optional but recommended)
 4. Add test coverage
 
-See the existing Snowflake suite (`agent/suites/snowflake.py`) for patterns.
+See the existing Snowflake suite (`agent/suites/snowflake.py`) for SQL patterns.
 
 ---
 

@@ -33,18 +33,27 @@ from typing import Any, Callable
 class Platform:
     """Complete definition of a supported database platform.
 
-    Centralizes driver connection, platform detection, SQL dialect properties,
-    type mappings, and suite association in one place.
+    Centralizes driver connection, platform detection, discovery, SQL dialect
+    properties, type mappings, and suite association in one place.
+
+    For non-SQL platforms (MongoDB, Elasticsearch, etc.), set:
+        query_type      -- e.g., "mongo_agg" instead of the default "sql"
+        detect_fn       -- a callable(conn) -> bool instead of detect_sql
+        discover_fn     -- a callable(conn, schemas, user_context) -> DatabaseInventory
+                           instead of relying on information_schema
     """
-    name: str                                   # "snowflake", "postgresql", etc.
-    schemes: list[str]                          # URL schemes: ["postgresql", "postgres"]
-    driver_package: str                         # "psycopg2-binary"
-    driver_install: str                         # "pip install psycopg2-binary"
+    name: str                                   # "snowflake", "mongodb", etc.
+    schemes: list[str]                          # URL schemes: ["mongodb", "mongodb+srv"]
+    driver_package: str                         # "pymongo"
+    driver_install: str                         # "pip install pymongo"
     connect_fn: Callable[[str], Any]            # function(connection_string) -> connection
-    detect_sql: str                             # SQL to probe for this platform
-    detect_match: str = ""                      # Substring to match in probe result (empty = just succeeding is enough)
-    identifier_quote: str = '"'                 # Quote character for identifiers
-    cast_float: str = "FLOAT"                   # Type name for CAST to float
+    detect_sql: str = ""                        # SQL to probe for this platform (SQL platforms)
+    detect_match: str = ""                      # Substring to match in probe result
+    query_type: str = "sql"                     # Default query language: "sql", "mongo_agg", "python"
+    detect_fn: Callable[[Any], bool] | None = None  # Non-SQL detection: callable(conn) -> bool
+    discover_fn: Callable[..., Any] | None = None   # Non-SQL discovery: callable(conn, schemas, ctx) -> DatabaseInventory
+    identifier_quote: str = '"'                 # Quote character for identifiers (SQL only)
+    cast_float: str = "FLOAT"                   # Type name for CAST to float (SQL only)
     system_schemas: list[str] = field(default_factory=lambda: [
         "information_schema", "pg_catalog", "INFORMATION_SCHEMA",
     ])
@@ -141,29 +150,45 @@ def detect_platform(conn: Any) -> str:
     """Detect which platform a connection belongs to.
 
     Iterates through registered platforms and tries each detection probe.
+    For SQL platforms, uses detect_sql. For non-SQL platforms, uses detect_fn.
     Returns the platform name, or "generic" if none match.
 
     This is the single source of truth -- no more duplicate detection logic.
     """
     _ensure_builtins()
-    cursor = conn.cursor()
 
     for platform in _PLATFORMS.values():
         try:
-            cursor.execute(platform.detect_sql)
-            row = cursor.fetchone()
-            if platform.detect_match:
-                if row and platform.detect_match.lower() in str(row[0]).lower():
+            # Non-SQL platforms use a callable detector
+            if platform.detect_fn is not None:
+                if platform.detect_fn(conn):
+                    return platform.name
+                continue
+
+            # SQL platforms use a SQL probe
+            if not platform.detect_sql:
+                continue
+
+            cursor = conn.cursor()
+            try:
+                cursor.execute(platform.detect_sql)
+                row = cursor.fetchone()
+                if platform.detect_match:
+                    if row and platform.detect_match.lower() in str(row[0]).lower():
+                        cursor.close()
+                        return platform.name
+                else:
+                    # No match required -- just succeeding is enough
                     cursor.close()
                     return platform.name
-            else:
-                # No match required -- just succeeding is enough
-                cursor.close()
-                return platform.name
+            finally:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         except Exception:
             pass
 
-    cursor.close()
     return "generic"
 
 

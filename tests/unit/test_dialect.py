@@ -124,63 +124,63 @@ class TestDialectInGeneratedSQL:
         tests = suite.column_tests(table, table.columns[0])
         null_test = [t for t in tests if t.name == "null_rate"][0]
         # Should use double-quote identifiers
-        assert '"order_id"' in null_test.sql
-        assert '"analytics"."orders"' in null_test.sql
+        assert '"order_id"' in null_test.query
+        assert '"analytics"."orders"' in null_test.query
 
     def test_null_rate_uses_cast_float(self, table):
         suite = CommonSuite()
         tests = suite.column_tests(table, table.columns[0])
         null_test = [t for t in tests if t.name == "null_rate"][0]
-        assert "AS FLOAT" in null_test.sql
+        assert "AS FLOAT" in null_test.query
 
     def test_pii_scan_uses_regex_match(self, table):
         suite = CommonSuite()
         # email column is string
         tests = suite.column_tests(table, table.columns[1])
         pii_test = [t for t in tests if t.name == "pii_pattern_scan"][0]
-        assert "SIMILAR TO" in pii_test.sql
+        assert "SIMILAR TO" in pii_test.query
 
     def test_freshness_uses_epoch_diff(self, table):
         suite = CommonSuite()
         # created_at is timestamp
         tests = suite.column_tests(table, table.columns[3])
         freshness_test = [t for t in tests if t.name == "table_freshness"][0]
-        assert "EXTRACT(EPOCH FROM" in freshness_test.sql
+        assert "EXTRACT(EPOCH FROM" in freshness_test.query
 
     def test_mysql_suite_uses_backtick_quotes(self, table):
         suite = _MockMySQLSuite()
         tests = suite.column_tests(table, table.columns[0])
         null_test = [t for t in tests if t.name == "null_rate"][0]
-        assert '`order_id`' in null_test.sql
-        assert '`analytics`.`orders`' in null_test.sql
+        assert '`order_id`' in null_test.query
+        assert '`analytics`.`orders`' in null_test.query
 
     def test_mysql_suite_uses_double_cast(self, table):
         suite = _MockMySQLSuite()
         tests = suite.column_tests(table, table.columns[0])
         null_test = [t for t in tests if t.name == "null_rate"][0]
-        assert "AS DOUBLE" in null_test.sql
+        assert "AS DOUBLE" in null_test.query
 
     def test_mysql_suite_uses_regexp(self, table):
         suite = _MockMySQLSuite()
         tests = suite.column_tests(table, table.columns[1])
         pii_test = [t for t in tests if t.name == "pii_pattern_scan"][0]
-        assert "REGEXP" in pii_test.sql
-        assert "SIMILAR TO" not in pii_test.sql
+        assert "REGEXP" in pii_test.query
+        assert "SIMILAR TO" not in pii_test.query
 
     def test_mysql_suite_uses_timestampdiff(self, table):
         suite = _MockMySQLSuite()
         tests = suite.column_tests(table, table.columns[3])
         freshness_test = [t for t in tests if t.name == "table_freshness"][0]
-        assert "TIMESTAMPDIFF" in freshness_test.sql
+        assert "TIMESTAMPDIFF" in freshness_test.query
 
     def test_database_tests_use_cast_float(self, inventory):
         suite = CommonSuite()
         tests = suite.database_tests(inventory)
         for test in tests:
-            assert "AS FLOAT" in test.sql
+            assert "AS FLOAT" in test.query
 
     def test_mysql_database_tests_use_double(self, inventory):
         suite = _MockMySQLSuite()
         tests = suite.database_tests(inventory)
         for test in tests:
-            assert "AS DOUBLE" in test.sql
+            assert "AS DOUBLE" in test.query

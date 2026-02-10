@@ -35,7 +35,7 @@ class TestCommonSuiteGeneration:
             assert test.name
             assert test.factor
             assert test.requirement
-            assert test.sql
+            assert test.query
             assert test.target_type in ("database", "table", "column")
             assert test.platform == "common"
 

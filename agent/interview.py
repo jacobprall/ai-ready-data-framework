@@ -148,7 +148,26 @@ def pre_assessment_questions() -> list[Question]:
         priority=2,
     ))
 
-    # 5. Known pain points
+    # 5. Table scoping for AI workloads
+    questions.append(Question(
+        id="ai_table_scope",
+        phase=1,
+        category="scope",
+        prompt=(
+            "Do you want to assess your entire database, or focus on the specific "
+            "tables that feed your AI systems?\n\n"
+            "If you have specific tables (e.g., feature stores, embedding tables, "
+            "training datasets, or the source tables that feed them), list them and "
+            "I'll scope the assessment to just those. Format: `schema.table`\n\n"
+            "If you're not sure, I'll assess everything and then help you identify "
+            "which tables matter most after discovery."
+        ),
+        question_type="free_text",
+        context_field="included_tables",
+        priority=1,
+    ))
+
+    # 6. Known pain points
     questions.append(Question(
         id="pain_points",
         phase=1,
@@ -209,7 +228,36 @@ def discovery_questions(inventory: DatabaseInventory, ctx: UserContext) -> list[
         data={"schema_counts": schema_counts},
     ))
 
-    # 2. Table criticality -- only ask if there are enough tables to matter
+    # 2. AI-feeding table detection -- suggest tables that look like they feed AI systems
+    ai_candidates = _detect_ai_feeding_tables(inventory)
+    if ai_candidates and ctx.scope_mode != "include":
+        ai_table_list = "\n".join(
+            f"- `{t.fqn}` ({len(t.columns)} columns) -- {reason}"
+            for t, reason in ai_candidates[:20]
+        )
+        questions.append(Question(
+            id="ai_table_scope_discovery",
+            phase=2,
+            category="scope",
+            prompt=(
+                f"I detected **{len(ai_candidates)} tables** that look like they may feed "
+                f"AI systems based on naming patterns and structure:\n\n{ai_table_list}\n\n"
+                f"Would you like to:\n"
+                f"- **Focus** the assessment on just these tables (faster, more relevant)\n"
+                f"- **Add** other tables to this list\n"
+                f"- **Assess everything** (current mode)\n\n"
+                f"Focusing on AI-feeding tables gives you a much more actionable report."
+            ),
+            question_type="free_text",
+            context_field="included_tables",
+            priority=1,
+            data={
+                "ai_candidates": [t.fqn for t, _ in ai_candidates],
+                "reasons": {t.fqn: reason for t, reason in ai_candidates},
+            },
+        ))
+
+    # 3. Table criticality -- only ask if there are enough tables to matter
     if total_tables > 5:
         # Suggest tables by heuristic: larger tables (more columns) or fact/dim naming
         candidate_critical = _suggest_critical_tables(inventory)
@@ -460,6 +508,108 @@ def results_questions(
 # ---------------------------------------------------------------------------
 # Heuristic helpers for discovery questions
 # ---------------------------------------------------------------------------
+
+def _detect_ai_feeding_tables(inventory: DatabaseInventory) -> list[tuple[TableInfo, str]]:
+    """Detect tables that likely feed AI systems based on naming, schema, and structure.
+
+    Returns a list of (table, reason) tuples sorted by confidence. These heuristics
+    aren't perfect -- the goal is to surface good candidates for the user to confirm.
+    """
+    # Naming patterns that suggest AI/ML usage
+    AI_NAME_PATTERNS = [
+        # Embeddings and vectors
+        ("embedding", "name suggests embedding storage"),
+        ("vector", "name suggests vector storage"),
+        ("_embed", "name suggests embedding data"),
+        # Feature stores
+        ("feature", "name suggests feature store"),
+        ("_feat_", "name suggests feature data"),
+        # Training and ML
+        ("training", "name suggests training dataset"),
+        ("train_", "name suggests training data"),
+        ("_train", "name suggests training data"),
+        ("label", "name suggests labeled data"),
+        ("annotation", "name suggests annotated data"),
+        ("ground_truth", "name suggests ground truth data"),
+        ("prediction", "name suggests prediction output"),
+        ("inference", "name suggests inference data"),
+        ("model_", "name suggests model metadata"),
+        ("_model", "name suggests model data"),
+        ("ml_", "name suggests ML pipeline data"),
+        # RAG and search
+        ("chunk", "name suggests chunked documents for RAG"),
+        ("document", "name suggests document storage for RAG"),
+        ("corpus", "name suggests text corpus"),
+        ("index", "name suggests search index data"),
+        ("knowledge", "name suggests knowledge base"),
+        ("catalog", "name suggests data catalog"),
+        # Semantic / enrichment
+        ("enriched", "name suggests enriched/processed data"),
+        ("semantic", "name suggests semantic data"),
+        ("entity", "name suggests entity data"),
+        ("ontology", "name suggests ontology data"),
+    ]
+
+    AI_SCHEMA_PATTERNS = [
+        "ml", "ai", "feature", "embedding", "vector", "training",
+        "rag", "search", "nlp", "analytics", "gold", "curated",
+        "semantic", "enriched", "warehouse",
+    ]
+
+    # Column-level signals: tables with vector/array columns or many text columns
+    VECTOR_COLUMN_HINTS = ["embedding", "vector", "dense", "sparse", "encoding"]
+
+    candidates: list[tuple[int, TableInfo, str]] = []
+
+    for table in inventory.tables:
+        score = 0
+        reasons: list[str] = []
+        name_lower = table.name.lower()
+        schema_lower = table.schema.lower()
+
+        # Check table name patterns
+        for pattern, reason in AI_NAME_PATTERNS:
+            if pattern in name_lower:
+                score += 30
+                reasons.append(reason)
+                break  # One name match is enough
+
+        # Check schema name patterns
+        for pattern in AI_SCHEMA_PATTERNS:
+            if pattern in schema_lower:
+                score += 20
+                reasons.append(f"schema '{table.schema}' suggests AI/analytics use")
+                break
+
+        # Check for vector/embedding columns
+        for col in table.columns:
+            col_lower = col.name.lower()
+            for hint in VECTOR_COLUMN_HINTS:
+                if hint in col_lower:
+                    score += 25
+                    reasons.append(f"column '{col.name}' suggests vector/embedding data")
+                    break
+
+        # Check for tables with high text column ratio (likely document/RAG tables)
+        text_cols = sum(1 for c in table.columns if c.is_string)
+        if table.columns and text_cols / len(table.columns) > 0.6 and text_cols >= 3:
+            score += 15
+            reasons.append(f"{text_cols}/{len(table.columns)} columns are text (document-like)")
+
+        # Check for tables with many columns (feature stores tend to be wide)
+        if len(table.columns) > 30:
+            score += 10
+            reasons.append(f"wide table ({len(table.columns)} columns, feature-store-like)")
+
+        if score > 0:
+            # Combine reasons into a single string
+            combined_reason = "; ".join(reasons[:2])  # Cap at 2 reasons for readability
+            candidates.append((score, table, combined_reason))
+
+    # Sort by confidence score descending
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return [(table, reason) for _, table, reason in candidates]
+
 
 def _suggest_critical_tables(inventory: DatabaseInventory) -> list[TableInfo]:
     """Identify tables likely to be critical based on naming and size."""

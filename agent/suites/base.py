@@ -1,4 +1,15 @@
-"""Base suite class that all platform suites extend."""
+"""Base suite class that all platform suites extend.
+
+The Test dataclass uses `query` (not `sql`) to hold the test logic, and
+`query_type` to declare the language. This allows non-SQL platforms (MongoDB,
+Elasticsearch, APIs) to participate in the same framework:
+
+    query_type="sql"         -- default; DB-API 2.0 cursor.execute(query)
+    query_type="mongo_agg"   -- MongoDB aggregation pipeline (JSON)
+    query_type="python"      -- a Python callable name (for API-based sources)
+
+SQL suites set query_type="sql" implicitly (it's the default).
+"""
 
 from __future__ import annotations
 
@@ -11,14 +22,32 @@ from agent.discover import ColumnInfo, DatabaseInventory, TableInfo
 
 @dataclass
 class Test:
-    """A single test definition within a suite."""
+    """A single test definition within a suite.
+
+    The `query` field holds the test logic in the language declared by
+    `query_type`. For SQL platforms this is a SELECT statement. For MongoDB
+    it would be a JSON aggregation pipeline. For API-based sources it could
+    be a Python callable reference.
+    """
     name: str                    # Unique test name within the suite
     factor: str                  # clean, contextual, consumable, current, correlated, compliant
     requirement: str             # Requirement key matching thresholds-default.json
-    sql: str                     # SQL query template with {schema}, {table}, {column} placeholders
-    target_type: str             # "column", "table", or "database"
+    query: str                   # Query in the language specified by query_type
+    target_type: str             # "column", "table", "collection", or "database"
+    query_type: str = "sql"      # "sql", "mongo_agg", "python", etc.
     description: str = ""
     platform: str = "common"     # Which platform this test is native to
+
+    # Backward compatibility: support construction with sql= kwarg
+    @property
+    def sql(self) -> str:
+        """Backward-compatible alias for query (SQL tests only)."""
+        return self.query
+
+    def __post_init__(self) -> None:
+        # Validate query_type
+        if not self.query_type:
+            self.query_type = "sql"
 
 
 @dataclass

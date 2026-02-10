@@ -38,7 +38,7 @@ class DatabricksSuite(CommonSuite):
                 factor="correlated", requirement="lineage_coverage", target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with upstream lineage tracked in Unity Catalog",
-                sql="""
+                query="""
                     SELECT CAST(
                         COUNT(DISTINCT target_table_full_name) AS FLOAT
                     ) / NULLIF(
@@ -56,7 +56,7 @@ class DatabricksSuite(CommonSuite):
                 factor="correlated", requirement="column_lineage_coverage", target_type="database",
                 platform=self.platform,
                 description="Column-level lineage entries in Unity Catalog",
-                sql="""
+                query="""
                     SELECT COUNT(DISTINCT CONCAT(target_table_full_name, '.', target_column_name)) AS columns_with_lineage
                     FROM system.access.column_lineage
                     WHERE target_type = 'TABLE'
@@ -68,7 +68,7 @@ class DatabricksSuite(CommonSuite):
                 factor="compliant", requirement="access_auditing", target_type="database",
                 platform=self.platform,
                 description="Audit log activity over the last 30 days from system.access.audit",
-                sql="""
+                query="""
                     SELECT COUNT(*) AS total_events,
                         COUNT(DISTINCT action_name) AS distinct_actions,
                         MIN(event_date) AS earliest, MAX(event_date) AS latest,
@@ -83,7 +83,7 @@ class DatabricksSuite(CommonSuite):
                 factor="consumable", requirement="access_pattern_analysis", target_type="database",
                 platform=self.platform,
                 description="Query patterns by source from system.billing.usage (last 7 days)",
-                sql="""
+                query="""
                     SELECT usage_metadata.job_id IS NOT NULL AS is_job,
                         usage_metadata.notebook_id IS NOT NULL AS is_notebook,
                         COUNT(*) AS usage_count,
@@ -100,7 +100,7 @@ class DatabricksSuite(CommonSuite):
                 factor="contextual", requirement="classification_coverage", target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with at least one tag in Unity Catalog",
-                sql="""
+                query="""
                     SELECT CAST(
                         COUNT(DISTINCT CONCAT(schema_name, '.', table_name)) AS FLOAT
                     ) / NULLIF(
@@ -129,7 +129,7 @@ class DatabricksSuite(CommonSuite):
                 factor="current", requirement="max_staleness_hours", target_type="table",
                 platform=self.platform,
                 description="Hours since last write from Delta table history",
-                sql=f"""
+                query=f"""
                     SELECT TIMESTAMPDIFF(HOUR, MAX(timestamp), CURRENT_TIMESTAMP()) AS measured_value
                     FROM (DESCRIBE HISTORY `{s}`.`{t}`)
                     WHERE operation IN ('WRITE', 'MERGE', 'DELETE', 'UPDATE', 'STREAMING UPDATE')
@@ -141,7 +141,7 @@ class DatabricksSuite(CommonSuite):
                 factor="correlated", requirement="schema_versioning", target_type="table",
                 platform=self.platform,
                 description="Schema change events from Delta table history",
-                sql=f"""
+                query=f"""
                     SELECT COUNT(*) AS schema_change_count, MIN(timestamp) AS earliest, MAX(timestamp) AS latest
                     FROM (DESCRIBE HISTORY `{s}`.`{t}`)
                     WHERE operation IN ('SET TBLPROPERTIES', 'CHANGE COLUMN', 'ADD COLUMNS', 'REPLACE COLUMNS')
@@ -153,7 +153,7 @@ class DatabricksSuite(CommonSuite):
                 factor="consumable", requirement="storage_optimization", target_type="table",
                 platform=self.platform,
                 description="Delta table file count, size, and partitioning from DESCRIBE DETAIL",
-                sql=f"""
+                query=f"""
                     SELECT numFiles, sizeInBytes, numFiles AS file_count,
                         CASE WHEN numFiles > 0 THEN sizeInBytes / numFiles ELSE 0 END AS avg_file_bytes
                     FROM (DESCRIBE DETAIL `{s}`.`{t}`)
@@ -165,7 +165,7 @@ class DatabricksSuite(CommonSuite):
                 factor="contextual", requirement="table_documentation", target_type="table",
                 platform=self.platform,
                 description="Table owner and comment from Unity Catalog",
-                sql=f"""
+                query=f"""
                     SELECT table_owner, comment,
                         CASE WHEN comment IS NOT NULL AND comment != '' THEN 1 ELSE 0 END AS has_comment,
                         CASE WHEN table_owner IS NOT NULL AND table_owner != '' THEN 1 ELSE 0 END AS has_owner
@@ -179,7 +179,7 @@ class DatabricksSuite(CommonSuite):
                 factor="compliant", requirement="pii_tagging", target_type="table",
                 platform=self.platform,
                 description="Percentage of columns with Unity Catalog tags",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         COUNT(DISTINCT ct.column_name) AS FLOAT
                     ) / NULLIF(
@@ -196,7 +196,7 @@ class DatabricksSuite(CommonSuite):
                 factor="correlated", requirement="table_lineage", target_type="table",
                 platform=self.platform,
                 description="Upstream sources for this table from Unity Catalog lineage",
-                sql=f"""
+                query=f"""
                     SELECT COUNT(*) AS upstream_count,
                         COUNT(DISTINCT source_table_full_name) AS distinct_sources
                     FROM system.access.table_lineage

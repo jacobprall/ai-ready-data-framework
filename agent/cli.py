@@ -79,6 +79,13 @@ def main() -> None:
         help="Schemas to assess (default: all non-system schemas)",
     )
     assess_parser.add_argument(
+        "--tables", "-t",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Specific tables to assess (schema.table format). When provided, only these tables are assessed.",
+    )
+    assess_parser.add_argument(
         "--suite",
         type=str,
         default="auto",
@@ -175,6 +182,8 @@ def run_assessment(args: argparse.Namespace) -> None:
     ctx = _load_user_context(args)
     if ctx.target_level:
         logger.info(f"Target workload level: {ctx.target_level}")
+    if ctx.scope_mode == "include" and ctx.included_tables:
+        logger.info(f"Inclusion scope: assessing only {len(ctx.included_tables)} tables")
     if ctx.excluded_schemas:
         logger.info(f"Excluded schemas: {', '.join(ctx.excluded_schemas)}")
     if ctx.excluded_tables:
@@ -296,21 +305,31 @@ def run_assessment(args: argparse.Namespace) -> None:
 
 def _load_user_context(args: argparse.Namespace) -> UserContext:
     """Load user context from explicit path or per-connection storage."""
+    logger = logging.getLogger("aird")
     ctx = UserContext()
 
     # Try explicit context file first
     if args.context:
         explicit_path = Path(args.context)
         ctx = load_context(explicit_path)
-        logging.getLogger("aird").info(f"Loaded context from {explicit_path}")
-        return ctx
-
-    # Try per-connection saved context
-    if args.connection:
+        logger.info(f"Loaded context from {explicit_path}")
+    elif args.connection:
+        # Try per-connection saved context
         conn_path = context_path_for_connection(args.connection)
         if conn_path.exists():
             ctx = load_context(conn_path)
-            logging.getLogger("aird").info(f"Loaded saved context for this connection")
+            logger.info(f"Loaded saved context for this connection")
+
+    # Apply --tables flag: switches to inclusion mode
+    if args.tables:
+        ctx.scope_mode = "include"
+        # Merge CLI tables with any already in context (deduplicate)
+        existing = {t.lower() for t in ctx.included_tables}
+        for table in args.tables:
+            if table.lower() not in existing:
+                ctx.included_tables.append(table)
+                existing.add(table.lower())
+        logger.info(f"Scoped to {len(ctx.included_tables)} tables: {', '.join(ctx.included_tables)}")
 
     return ctx
 
@@ -380,11 +399,12 @@ def _output_dry_run(tests: list, inventory: object, suite: object, ctx: UserCont
     for req, count in sorted(req_counts.items(), key=lambda x: -x[1]):
         print(f"| {req} | {count} |")
 
-    # Sample SQL (first 5 tests)
-    print("\n## Sample Test SQL (first 5)\n")
+    # Sample queries (first 5 tests)
+    print("\n## Sample Test Queries (first 5)\n")
     for i, test in enumerate(tests[:5]):
+        lang = test.query_type if test.query_type != "sql" else "sql"
         print(f"### {i+1}. {test.name} ({test.factor} / {test.requirement})")
-        print(f"```sql\n{test.sql.strip()}\n```\n")
+        print(f"```{lang}\n{test.query.strip()}\n```\n")
 
     # JSON output for agent consumption
     print("\n## Full Test List (JSON)\n")

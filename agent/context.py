@@ -43,6 +43,15 @@ class UserContext:
     # What the user is building toward: "L1" (Analytics), "L2" (RAG), "L3" (Training)
     target_level: str | None = None
 
+    # Scope mode: "all" (assess everything, then exclude) or "include" (only assess listed tables)
+    scope_mode: str = "all"
+
+    # Inclusion-first scoping: when populated, ONLY these tables are assessed.
+    # Format: "schema.table" (e.g., "analytics.orders", "ml.feature_store")
+    # When scope_mode is "include" and this list is non-empty, exclusions are
+    # still applied on top (belt-and-suspenders).
+    included_tables: list[str] = field(default_factory=list)
+
     # Schemas and tables to exclude from assessment
     excluded_schemas: list[str] = field(default_factory=list)
     excluded_tables: list[str] = field(default_factory=list)
@@ -119,8 +128,32 @@ class UserContext:
         else:
             self.infrastructure.discard("iceberg")
 
+    def is_table_included(self, schema: str, table_name: str) -> bool:
+        """Check if a table is in the inclusion list.
+
+        When scope_mode is "include" and included_tables is non-empty, only
+        tables on the inclusion list pass. When scope_mode is "all" (default),
+        every table passes (inclusion is not checked).
+        """
+        if self.scope_mode != "include" or not self.included_tables:
+            return True
+        fqn = f"{schema}.{table_name}"
+        return fqn.lower() in [t.lower() for t in self.included_tables]
+
     def is_table_excluded(self, schema: str, table_name: str) -> bool:
-        """Check if a table should be excluded from assessment."""
+        """Check if a table should be excluded from assessment.
+
+        A table is excluded if:
+        1. It fails the inclusion check (scope_mode="include" and not in list), OR
+        2. Its schema is in excluded_schemas, OR
+        3. Its fqn is in excluded_tables
+
+        Exclusions are always applied, even in inclusion mode.
+        """
+        # Inclusion check first
+        if not self.is_table_included(schema, table_name):
+            return True
+        # Then exclusion checks
         fqn = f"{schema}.{table_name}"
         if schema.lower() in [s.lower() for s in self.excluded_schemas]:
             return True
@@ -225,11 +258,14 @@ def merge_context(saved: UserContext, interactive: UserContext) -> UserContext:
 
     # Scalars: interactive wins if set
     merged.target_level = interactive.target_level or saved.target_level
+    # If either context is in inclusion mode, the merged context should be too
+    merged.scope_mode = interactive.scope_mode if interactive.included_tables else saved.scope_mode
     merged.infrastructure = saved.infrastructure | interactive.infrastructure
     merged.notes = interactive.notes or saved.notes
 
     # Lists: union and deduplicate (case-insensitive)
     list_fields = [
+        "included_tables",
         "excluded_schemas", "excluded_tables", "known_pii_columns",
         "false_positive_pii", "nullable_by_design", "confirmed_keys",
         "not_keys", "known_issues", "accepted_failures",
@@ -265,6 +301,8 @@ def _context_to_dict(ctx: UserContext) -> dict[str, Any]:
     """Convert a UserContext to a plain dict for YAML serialization."""
     return {
         "target_level": ctx.target_level,
+        "scope_mode": ctx.scope_mode,
+        "included_tables": ctx.included_tables,
         "excluded_schemas": ctx.excluded_schemas,
         "excluded_tables": ctx.excluded_tables,
         "known_pii_columns": ctx.known_pii_columns,
@@ -309,6 +347,8 @@ def _dict_to_context(data: dict[str, Any]) -> UserContext:
 
     return UserContext(
         target_level=data.get("target_level"),
+        scope_mode=data.get("scope_mode", "all"),
+        included_tables=data.get("included_tables", []),
         excluded_schemas=data.get("excluded_schemas", []),
         excluded_tables=data.get("excluded_tables", []),
         known_pii_columns=data.get("known_pii_columns", []),

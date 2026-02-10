@@ -1,8 +1,16 @@
 """Executor module: runs suite tests and collects results.
 
-SAFETY: The executor enforces read-only access. Every SQL statement is validated
-before execution -- only SELECT, DESCRIBE, SHOW, and EXPLAIN are permitted. Any
-statement containing DDL, DML, or DCL is rejected and logged as an error.
+The executor dispatches on test.query_type:
+
+    "sql"         -- DB-API 2.0 cursor path (default, enforces read-only)
+    "mongo_agg"   -- MongoDB aggregation pipeline (community)
+    "python"      -- Python callable (community)
+
+SQL SAFETY: For query_type="sql", every statement is validated before execution --
+only SELECT, DESCRIBE, SHOW, and EXPLAIN are permitted. Any statement containing
+DDL, DML, or DCL is rejected and logged as an error.
+
+Non-SQL query types are executed by platform-registered handler functions.
 """
 
 from __future__ import annotations
@@ -11,7 +19,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from agent.suites.base import Test, TestResult
 
@@ -74,8 +82,62 @@ def load_thresholds(thresholds_path: str | None = None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Query-type handler registry
+# ---------------------------------------------------------------------------
+
+# Maps query_type -> callable(conn, query_str) -> float | None
+# Each handler receives the connection and the raw query string, and must
+# return a measured_value (float) or None.
+QueryHandler = Callable[[Any, str], float | None]
+
+_QUERY_HANDLERS: dict[str, QueryHandler] = {}
+
+
+def register_query_handler(query_type: str, handler: QueryHandler) -> None:
+    """Register a handler for a custom query type.
+
+    Community platforms call this to teach the executor how to run their
+    native query language.  Example for MongoDB:
+
+        def mongo_handler(conn, pipeline_json):
+            import json
+            pipeline = json.loads(pipeline_json)
+            db = conn.get_default_database()
+            result = db.command("aggregate", pipeline[0], pipeline=pipeline[1:], cursor={})
+            docs = list(result.get("cursor", {}).get("firstBatch", []))
+            return float(docs[0].get("measured_value", 0)) if docs else None
+
+        register_query_handler("mongo_agg", mongo_handler)
+    """
+    _QUERY_HANDLERS[query_type] = handler
+
+
+# ---------------------------------------------------------------------------
 # Execution
 # ---------------------------------------------------------------------------
+
+def _execute_sql(conn: Any, query: str) -> float | None:
+    """Execute a SQL query via DB-API 2.0 and return the measured_value.
+
+    This is the default handler for query_type="sql".
+    """
+    validate_readonly(query)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(query)
+        row = cursor.fetchone()
+        if row is not None:
+            col_names = [desc[0].lower() for desc in cursor.description] if cursor.description else []
+            if "measured_value" in col_names:
+                idx = col_names.index("measured_value")
+                return float(row[idx]) if row[idx] is not None else None
+            else:
+                return float(row[0]) if row[0] is not None else None
+        return None
+    finally:
+        cursor.close()
+
 
 def execute_test(
     conn: Any,
@@ -85,50 +147,47 @@ def execute_test(
 ) -> TestResult:
     """Execute a single test and return a scored result.
 
+    Dispatches to the appropriate handler based on test.query_type:
+    - "sql" uses DB-API 2.0 with read-only validation (default)
+    - Other types dispatch to handlers registered via register_query_handler()
+
     If a UserContext is provided, it influences scoring:
     - nullable_by_design columns get relaxed null_rate thresholds
     - false_positive_pii columns skip PII tests
     - per-table freshness SLAs override default staleness thresholds
     - accepted failures are annotated in the result detail
     """
-    sql = test.sql.strip()
-
-    # Validate read-only
-    try:
-        validate_readonly(sql)
-    except ReadOnlyViolation as e:
-        logger.error(f"Read-only violation for {test.name}: {e}")
-        return _error_result(test, str(e), thresholds)
+    query_str = test.query.strip()
+    query_type = test.query_type or "sql"
 
     # Build target string
     if test.target_type == "database":
         target = "database"
-    elif test.target_type == "table":
-        target = f"{test.sql}"  # table target is embedded in the test
-        target = f"{test.name}"
+    elif test.target_type in ("table", "collection"):
+        target = test.name
     else:
         target = test.name
 
-    # Execute
-    cursor = conn.cursor()
+    # Execute via the appropriate handler
     measured_value: float | None = None
     error_detail: str | None = None
 
     try:
-        cursor.execute(sql)
-        row = cursor.fetchone()
-        if row is not None:
-            col_names = [desc[0].lower() for desc in cursor.description] if cursor.description else []
-            if "measured_value" in col_names:
-                idx = col_names.index("measured_value")
-                measured_value = float(row[idx]) if row[idx] is not None else None
-            else:
-                measured_value = float(row[0]) if row[0] is not None else None
+        if query_type == "sql":
+            measured_value = _execute_sql(conn, query_str)
+        elif query_type in _QUERY_HANDLERS:
+            measured_value = _QUERY_HANDLERS[query_type](conn, query_str)
+        else:
+            error_detail = (
+                f"No handler registered for query_type='{query_type}'. "
+                f"Register one with register_query_handler('{query_type}', handler)."
+            )
+    except ReadOnlyViolation as e:
+        logger.error(f"Read-only violation for {test.name}: {e}")
+        return _error_result(test, str(e), thresholds)
     except Exception as e:
         error_detail = str(e)
         logger.warning(f"Query failed for {test.name}: {e}")
-    finally:
-        cursor.close()
 
     # Apply context-aware threshold overrides
     req_thresholds = _get_thresholds(thresholds, test.factor, test.requirement)
@@ -141,7 +200,6 @@ def execute_test(
     result = _score(measured_value, req_thresholds, test.requirement)
 
     # Detail
-    context_notes: list[str] = []
     if error_detail:
         detail = f"Query failed: {error_detail}"
     elif measured_value is not None:
@@ -174,7 +232,7 @@ def execute_test(
         measured_value=measured_value,
         thresholds=req_thresholds,
         detail=detail,
-        query=sql,
+        query=query_str,
     )
 
 

@@ -188,7 +188,7 @@ class TestApplyContextOverrides:
     def _make_test(self, requirement: str) -> Test:
         return Test(
             name="test", factor="clean", requirement=requirement,
-            sql="SELECT 1", target_type="column", platform="common",
+            query="SELECT 1", target_type="column", platform="common",
         )
 
     def test_nullable_by_design_relaxes_null_rate(self, sample_context):
@@ -240,7 +240,7 @@ class TestGetContextAnnotations:
     def _make_test(self, requirement: str) -> Test:
         return Test(
             name="test", factor="clean", requirement=requirement,
-            sql="SELECT 1", target_type="column", platform="common",
+            query="SELECT 1", target_type="column", platform="common",
         )
 
     def test_nullable_by_design(self, sample_context):

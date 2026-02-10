@@ -80,10 +80,12 @@ class TestPlatformProperties:
             p = get_platform(name)
             assert callable(p.connect_fn), f"{name} has no connect_fn"
 
-    def test_each_platform_has_detect_sql(self):
+    def test_each_platform_has_detection(self):
+        """Every platform must have either detect_sql or detect_fn."""
         for name in list_platforms():
             p = get_platform(name)
-            assert p.detect_sql, f"{name} has no detect_sql"
+            has_detection = bool(p.detect_sql) or (p.detect_fn is not None)
+            assert has_detection, f"{name} has neither detect_sql nor detect_fn"
 
     def test_each_platform_has_driver_install(self):
         for name in list_platforms():
@@ -152,6 +154,37 @@ class TestTypeSets:
         assert "timestamp" in all_types
 
 
+class TestNonSQLPlatformRegistration:
+    """Tests for non-SQL platform support (detect_fn, discover_fn, query_type)."""
+
+    def test_register_nosql_platform(self):
+        """A platform with detect_fn (no detect_sql) can be registered."""
+        nosql = Platform(
+            name="test_nosql",
+            schemes=["testnosql"],
+            driver_package="test-nosql-driver",
+            driver_install="pip install test-nosql-driver",
+            connect_fn=lambda cs: None,
+            detect_fn=lambda conn: hasattr(conn, "_test_nosql_marker"),
+            query_type="test_nosql_agg",
+        )
+        register_platform(nosql)
+        p = get_platform("test_nosql")
+        assert p is not None
+        assert p.query_type == "test_nosql_agg"
+        assert p.detect_fn is not None
+        assert p.detect_sql == ""
+
+    def test_nosql_platform_has_detection(self):
+        p = get_platform("test_nosql")
+        assert p.detect_fn is not None
+
+    def test_nosql_platform_by_scheme(self):
+        p = get_platform_by_scheme("testnosql")
+        assert p is not None
+        assert p.name == "test_nosql"
+
+
 class TestDetectPlatform:
 
     def test_detect_duckdb(self, duckdb_conn):
@@ -160,3 +193,12 @@ class TestDetectPlatform:
         # DuckDB may report as "duckdb" or fall through to "generic" depending
         # on version string; both are acceptable.
         assert result in ("duckdb", "generic")
+
+    def test_detect_via_detect_fn(self):
+        """detect_platform() uses detect_fn for non-SQL platforms."""
+        # Create a mock connection with a marker attribute
+        class MockNoSQLConn:
+            _test_nosql_marker = True
+
+        result = detect_platform(MockNoSQLConn())
+        assert result == "test_nosql"

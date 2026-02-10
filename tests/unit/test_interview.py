@@ -5,6 +5,7 @@ import pytest
 from agent.context import UserContext
 from agent.discover import ColumnInfo, DatabaseInventory, TableInfo
 from agent.interview import (
+    _detect_ai_feeding_tables,
     _extract_top_failures,
     _find_heuristic_keys,
     _find_nullable_candidates,
@@ -18,9 +19,9 @@ from agent.interview import (
 
 class TestPreAssessmentQuestions:
 
-    def test_returns_five_questions(self):
+    def test_returns_six_questions(self):
         questions = pre_assessment_questions()
-        assert len(questions) == 5
+        assert len(questions) == 6
 
     def test_target_level_is_first(self):
         questions = pre_assessment_questions()
@@ -102,6 +103,87 @@ class TestSuggestCriticalTables:
         inv = DatabaseInventory(tables=tables)
         result = _suggest_critical_tables(inv)
         assert result[0].name == "users"
+
+
+class TestDetectAiFeedingTables:
+
+    def test_embedding_table_detected(self):
+        tables = [
+            TableInfo("", "ml", "user_embeddings", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+                ColumnInfo("embedding", "float[]", True, None, 2),
+            ]),
+            TableInfo("", "s", "random_log", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        fqns = [t.fqn for t, _ in results]
+        assert "ml.user_embeddings" in fqns
+
+    def test_feature_store_detected(self):
+        tables = [
+            TableInfo("", "ml", "feature_store", "TABLE", columns=[
+                ColumnInfo(f"feat_{i}", "float", True, None, i) for i in range(40)
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        assert len(results) > 0
+        assert results[0][0].name == "feature_store"
+
+    def test_ml_schema_boosts_score(self):
+        tables = [
+            TableInfo("", "ml", "predictions", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+            ]),
+            TableInfo("", "staging", "predictions", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        # ml.predictions should rank higher due to both schema and name signals
+        assert results[0][0].schema == "ml"
+
+    def test_document_table_for_rag(self):
+        tables = [
+            TableInfo("", "rag", "document_chunks", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+                ColumnInfo("content", "text", True, None, 2),
+                ColumnInfo("embedding", "float[]", True, None, 3),
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        assert len(results) > 0
+        # Should get multiple signals: chunk + document + embedding column + rag schema
+        assert results[0][0].name == "document_chunks"
+
+    def test_no_matches_returns_empty(self):
+        tables = [
+            TableInfo("", "public", "sales", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+                ColumnInfo("amount", "decimal", True, None, 2),
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        assert len(results) == 0
+
+    def test_reason_string_included(self):
+        tables = [
+            TableInfo("", "ml", "training_data", "TABLE", columns=[
+                ColumnInfo("id", "int", False, None, 1),
+            ]),
+        ]
+        inv = DatabaseInventory(tables=tables)
+        results = _detect_ai_feeding_tables(inv)
+        assert len(results) > 0
+        _, reason = results[0]
+        assert isinstance(reason, str)
+        assert len(reason) > 0
 
 
 class TestFindHeuristicKeys:

@@ -38,7 +38,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="clean", requirement="ingestion_error_rate", target_type="database",
                 platform=self.platform,
                 description="Ingestion error rate from COPY_HISTORY (last 30 days)",
-                sql="""
+                query="""
                     SELECT CAST(
                         SUM(CASE WHEN status = 'LOAD_FAILED' THEN 1 ELSE 0 END) AS FLOAT
                     ) / NULLIF(COUNT(*), 0) AS measured_value
@@ -52,7 +52,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="clean", requirement="table_profiling", target_type="database",
                 platform=self.platform,
                 description="Row counts from TABLE_STORAGE_METRICS (no table scan required)",
-                sql="""
+                query="""
                     SELECT table_schema, table_name, row_count, active_bytes
                     FROM snowflake.account_usage.table_storage_metrics
                     WHERE table_catalog = CURRENT_DATABASE()
@@ -67,7 +67,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="current", requirement="pipeline_health", target_type="database",
                 platform=self.platform,
                 description="Snowpipe status and health",
-                sql="""
+                query="""
                     SELECT pipe_schema, pipe_name, is_autoingest_enabled, created, last_altered
                     FROM information_schema.pipes
                     WHERE pipe_schema NOT IN ('INFORMATION_SCHEMA')
@@ -80,7 +80,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="current", requirement="pipeline_freshness", target_type="database",
                 platform=self.platform,
                 description="Dynamic Table refresh status and lag",
-                sql="""
+                query="""
                     SELECT name, schema_name, target_lag, refresh_mode, scheduling_state
                     FROM information_schema.dynamic_tables
                     WHERE schema_name NOT IN ('INFORMATION_SCHEMA')
@@ -92,7 +92,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="consumable", requirement="access_pattern_analysis", target_type="database",
                 platform=self.platform,
                 description="Query patterns by client application (last 7 days)",
-                sql="""
+                query="""
                     SELECT client_application_id, COUNT(*) AS query_count,
                         AVG(total_elapsed_time)/1000.0 AS avg_duration_sec,
                         SUM(rows_produced) AS total_rows
@@ -109,7 +109,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="correlated", requirement="lineage_coverage", target_type="database",
                 platform=self.platform,
                 description="Object dependency graph from OBJECT_DEPENDENCIES. Measures how many objects have tracked upstream dependencies.",
-                sql="""
+                query="""
                     SELECT
                         COUNT(DISTINCT referencing_object_name) AS objects_with_dependencies,
                         COUNT(DISTINCT referenced_object_name) AS referenced_objects,
@@ -124,7 +124,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="correlated", requirement="column_lineage_coverage", target_type="database",
                 platform=self.platform,
                 description="Column-level lineage from ACCESS_HISTORY. Shows whether column-level access tracking is active.",
-                sql="""
+                query="""
                     SELECT
                         COUNT(*) AS total_access_records,
                         COUNT(DISTINCT query_id) AS distinct_queries,
@@ -139,7 +139,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="compliant", requirement="access_auditing", target_type="database",
                 platform=self.platform,
                 description="Access audit log coverage from ACCESS_HISTORY (last 30 days)",
-                sql="""
+                query="""
                     SELECT COUNT(*) AS total_events,
                         COUNT(DISTINCT user_name) AS distinct_users,
                         COUNT(DISTINCT query_id) AS distinct_queries,
@@ -154,7 +154,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="compliant", requirement="pii_masking_coverage", target_type="database",
                 platform=self.platform,
                 description="Percentage of PII-named columns with masking policies applied",
-                sql="""
+                query="""
                     SELECT CAST(
                         COUNT(DISTINCT pr.ref_column_name) AS FLOAT
                     ) / NULLIF(
@@ -175,7 +175,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="compliant", requirement="row_level_security", target_type="database",
                 platform=self.platform,
                 description="Count of tables with row access policies applied",
-                sql="""
+                query="""
                     SELECT COUNT(DISTINCT ref_entity_name) AS tables_with_row_policies
                     FROM table(information_schema.policy_references(ref_entity_domain => 'TABLE')) pr
                     WHERE pr.policy_kind = 'ROW_ACCESS_POLICY'
@@ -200,7 +200,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="current", requirement="max_staleness_hours", target_type="table",
                 platform=self.platform,
                 description="Hours since table was last altered (from metadata, no scan)",
-                sql=f"""
+                query=f"""
                     SELECT DATEDIFF('hour', last_altered, CURRENT_TIMESTAMP()) AS measured_value
                     FROM information_schema.tables
                     WHERE table_schema = '{s}' AND table_name = '{t}'
@@ -212,7 +212,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="correlated", requirement="table_lineage", target_type="table",
                 platform=self.platform,
                 description="Upstream dependencies for this table from OBJECT_DEPENDENCIES",
-                sql=f"""
+                query=f"""
                     SELECT COUNT(*) AS upstream_count,
                         COUNT(DISTINCT referenced_object_name) AS distinct_sources
                     FROM snowflake.account_usage.object_dependencies
@@ -227,7 +227,7 @@ class SnowflakeSuite(CommonSuite):
                 factor="contextual", requirement="data_ownership", target_type="table",
                 platform=self.platform,
                 description="Check if table has explicit ownership assigned",
-                sql=f"""
+                query=f"""
                     SELECT table_owner,
                         CASE WHEN table_owner IS NOT NULL AND table_owner != '' THEN 1 ELSE 0 END AS measured_value
                     FROM information_schema.tables

@@ -59,9 +59,10 @@ v1/                     Archived v1 content (kept for reference).
 
 ## Key Conventions
 
-- **The agent is strictly read-only.** Enforced at connection level (read-only transactions where supported) and application level (SQL validation rejects non-SELECT statements). Never write a query that mutates data.
-- **Platform registry.** All platform knowledge (driver, detection, SQL dialect, type mappings) is centralized in `agent/platforms.py`. Adding a platform means registering a `Platform` dataclass -- no more editing 7-11 files.
-- **Suite-based architecture with dialect layer.** Each platform gets a full test suite that uses native capabilities. Suites extend CommonSuite, inheriting ANSI SQL tests and adding platform-specific ones. CommonSuite provides overridable dialect properties (`quote`, `cast_float`, `regex_match`, `epoch_diff`) so new platforms only override syntax, not entire test methods.
+- **The agent is strictly read-only.** Enforced at connection level (read-only transactions where supported) and application level (SQL validation rejects non-SELECT statements for SQL platforms). Non-SQL platforms enforce read-only via their native connection options. Never write a query that mutates data.
+- **Platform registry.** All platform knowledge (driver, detection, query type, dialect, type mappings) is centralized in `agent/platforms.py`. Adding a platform means registering a `Platform` dataclass -- no more editing 7-11 files.
+- **Query-type dispatch.** The `Test` dataclass has a `query` field (the test logic) and a `query_type` field (defaults to `"sql"`). The executor dispatches to the appropriate handler: SQL uses DB-API 2.0 cursors with read-only validation; non-SQL types (e.g., `"mongo_agg"`) use handlers registered via `register_query_handler()`. This lets the same scoring and reporting pipeline work for any data source.
+- **Suite-based architecture with dialect layer.** Each platform gets a full test suite that uses native capabilities. SQL suites extend CommonSuite, inheriting ANSI SQL tests and adding platform-specific ones. CommonSuite provides overridable dialect properties (`quote`, `cast_float`, `regex_match`, `epoch_diff`) so new SQL platforms only override syntax, not entire test methods. Non-SQL platforms extend `Suite` directly.
 - **Three-level scoring.** Every test is assessed against L1 (BI), L2 (RAG), L3 (Training). One measurement, three verdicts. Thresholds in `thresholds-default.json` are self-describing -- each includes a `direction` field ("max" or "min") so scoring logic doesn't rely on hardcoded lists.
 - **Content vs code.** Framework content in `framework/` is prose. Agent logic in `agent/` is implementation. Don't mix them.
 - **Interactive assessment.** The assessment supports a three-phase interactive flow (pre-assessment interview, post-discovery walkthrough, post-results triage). User context is stored in `UserContext` (`agent/context.py`) and persisted per connection at `~/.aird/contexts/`. The agent drives the conversation; the CLI accepts a `--context` YAML file.
@@ -75,10 +76,10 @@ v1/                     Archived v1 content (kept for reference).
 
 ## When Writing Test Suites
 
-- Extend `CommonSuite` (which extends `Suite`).
-- Override `database_tests()`, `table_tests()`, and `column_tests()`.
-- Call `super()` first to inherit common tests, then extend with platform-native tests.
-- Each test is a `Test` dataclass with inline SQL -- no external query files needed.
+- **SQL platforms:** Extend `CommonSuite` (which extends `Suite`). Override `database_tests()`, `table_tests()`, and `column_tests()`. Call `super()` first to inherit common tests.
+- **Non-SQL platforms:** Extend `Suite` directly. Implement all three test methods. Set `query_type` on each `Test` to match your registered handler.
+- Each test is a `Test` dataclass with a `query` field (the test logic) and `query_type` (defaults to `"sql"`).
+- Use `query=` (not `sql=`) in `Test()` constructors. The `.sql` property exists for backward compatibility only.
 - Use the platform's full capabilities. Don't limit yourself to ANSI SQL.
 - Set `platform=self.platform` on every test so the report shows which suite generated it.
 

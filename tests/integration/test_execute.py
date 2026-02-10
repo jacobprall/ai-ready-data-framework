@@ -20,7 +20,7 @@ class TestExecuteTestAgainstFixture:
     def test_null_rate_query(self, duckdb_conn, thresholds):
         test = Test(
             name="null_rate", factor="clean", requirement="null_rate",
-            sql='SELECT CAST(COUNT(*) - COUNT("customer_id") AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value FROM "analytics"."orders"',
+            query='SELECT CAST(COUNT(*) - COUNT("customer_id") AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value FROM "analytics"."orders"',
             target_type="column", platform="common",
         )
         result = execute_test(duckdb_conn, test, thresholds)
@@ -31,7 +31,7 @@ class TestExecuteTestAgainstFixture:
     def test_zero_null_rate(self, duckdb_conn, thresholds):
         test = Test(
             name="null_rate", factor="clean", requirement="null_rate",
-            sql='SELECT CAST(COUNT(*) - COUNT("order_id") AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value FROM "analytics"."orders"',
+            query='SELECT CAST(COUNT(*) - COUNT("order_id") AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value FROM "analytics"."orders"',
             target_type="column", platform="common",
         )
         result = execute_test(duckdb_conn, test, thresholds)
@@ -42,7 +42,7 @@ class TestExecuteTestAgainstFixture:
     def test_select_constant(self, duckdb_conn, thresholds):
         test = Test(
             name="test_const", factor="clean", requirement="null_rate",
-            sql="SELECT 0.03 AS measured_value",
+            query="SELECT 0.03 AS measured_value",
             target_type="column", platform="common",
         )
         result = execute_test(duckdb_conn, test, thresholds)
@@ -51,7 +51,7 @@ class TestExecuteTestAgainstFixture:
     def test_context_overrides_applied(self, duckdb_conn, thresholds, sample_context):
         test = Test(
             name="null_rate", factor="clean", requirement="null_rate",
-            sql="SELECT 0.80 AS measured_value",
+            query="SELECT 0.80 AS measured_value",
             target_type="column", platform="common",
         )
         # Target matches a nullable-by-design column
@@ -63,7 +63,7 @@ class TestExecuteTestAgainstFixture:
     def test_query_failure_produces_error(self, duckdb_conn, thresholds):
         test = Test(
             name="bad_query", factor="clean", requirement="null_rate",
-            sql="SELECT * FROM nonexistent_table_xyz",
+            query="SELECT * FROM nonexistent_table_xyz",
             target_type="column", platform="common",
         )
         result = execute_test(duckdb_conn, test, thresholds)
@@ -73,7 +73,7 @@ class TestExecuteTestAgainstFixture:
     def test_readonly_violation(self, duckdb_conn, thresholds):
         test = Test(
             name="bad_test", factor="clean", requirement="null_rate",
-            sql="INSERT INTO analytics.orders VALUES (999, 1, 'x', 1.0, NULL, NULL)",
+            query="INSERT INTO analytics.orders VALUES (999, 1, 'x', 1.0, NULL, NULL)",
             target_type="column", platform="common",
         )
         result = execute_test(duckdb_conn, test, thresholds)

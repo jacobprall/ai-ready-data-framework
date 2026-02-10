@@ -156,7 +156,7 @@ def sample_test() -> Test:
         name="null_rate",
         factor="clean",
         requirement="null_rate",
-        sql='SELECT 0.25 AS measured_value',
+        query='SELECT 0.25 AS measured_value',
         target_type="column",
         platform="common",
     )

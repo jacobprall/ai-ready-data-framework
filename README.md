@@ -50,7 +50,7 @@ The AI-Ready Data Framework defines five factors of AI-ready data with requireme
 
 A Python CLI with purpose-built test suites. The output is a scored report showing which workload levels your data is ready for.
 
-**The agent is strictly read-only.** It will never create, modify, or delete anything in your database. This is enforced at the connection layer (read-only transactions where the driver supports it) and the application layer (every SQL statement is validated before execution -- only SELECT, DESCRIBE, SHOW, and EXPLAIN are permitted). Grant it a read-only role for defense in depth.
+**The agent is strictly read-only.** It will never create, modify, or delete anything in your data source. For SQL platforms, this is enforced at the connection layer (read-only transactions) and application layer (SQL statement validation). Non-SQL platforms enforce read-only via their native connection options. Grant it a read-only role for defense in depth.
 
 **Built-in suites:**
 
@@ -59,20 +59,20 @@ A Python CLI with purpose-built test suites. The output is a scored report showi
 | `common` | ANSI SQL + information_schema. Works on any SQL database (DuckDB, etc). |
 | `snowflake` | ACCOUNT_USAGE, OBJECT_DEPENDENCIES, masking policies, Snowpipe, Dynamic Tables, TIME_TRAVEL |
 
-**Community suites** for Databricks, PostgreSQL, and more are in `examples/community-suites/`. Adding a new platform is straightforward -- see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Community suites** for Databricks, PostgreSQL, MongoDB, and more can be added via `examples/community-suites/`. The agent supports both SQL and non-SQL data sources through its query-type dispatch system -- see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The suite is auto-detected from your connection. Or specify it: `--suite snowflake`
 
 ### [Design & Architecture](packages/)
 
-Design decisions, architecture diagrams, and the project gameplan.
+Design decisions, architecture diagrams, and the project roadmap.
 
 ## How It Works
 
 1. **Connect** -- Point the agent at your database
 2. **Discover** -- The agent enumerates schemas, tables, and columns
 3. **Generate** -- Column metadata is mapped to applicable tests from the framework
-4. **Execute** -- SQL queries run against your data, producing measurements
+4. **Execute** -- Queries run against your data source (SQL, aggregation pipelines, APIs), producing measurements
 5. **Score** -- Results are assessed against L1/L2/L3 thresholds
 6. **Report** -- A scored report shows exactly where you stand and what to fix
 7. **Save** -- Results are stored locally in SQLite (`~/.aird/assessments.db`) for history and diffing

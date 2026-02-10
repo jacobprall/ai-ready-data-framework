@@ -70,7 +70,7 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with non-empty descriptions",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         SUM(CASE WHEN t.comment IS NOT NULL AND t.comment != '' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
@@ -87,7 +87,7 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with at least one timestamp column",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         COUNT(DISTINCT CASE
                             WHEN c.data_type IN ('timestamp', 'datetime', 'date', 'timestamptz',
@@ -110,7 +110,7 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with PK or unique constraints",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         COUNT(DISTINCT tc.table_name) AS {self.cast_float}
                     ) / NULLIF(
@@ -131,7 +131,7 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with explicit access grants beyond public",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         COUNT(DISTINCT tp.table_name) AS {self.cast_float}
                     ) / NULLIF(
@@ -160,7 +160,7 @@ class CommonSuite(Suite):
                 target_type="table",
                 platform=self.platform,
                 description="Percentage of columns with descriptions",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         SUM(CASE WHEN comment IS NOT NULL AND comment != '' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
@@ -175,7 +175,7 @@ class CommonSuite(Suite):
                 target_type="table",
                 platform=self.platform,
                 description="Percentage of columns following the dominant naming convention",
-                sql=f"""
+                query=f"""
                     SELECT CAST(MAX(convention_count) AS {self.cast_float}) / NULLIF(SUM(convention_count), 0) AS measured_value
                     FROM (
                         SELECT CASE
@@ -201,7 +201,7 @@ class CommonSuite(Suite):
                 target_type="table",
                 platform=self.platform,
                 description="Percentage of columns using AI-compatible types",
-                sql=f"""
+                query=f"""
                     SELECT CAST(SUM(CASE WHEN LOWER(data_type) IN (
                         'int','integer','bigint','smallint','tinyint','float','double','decimal',
                         'numeric','real','number','varchar','char','text','string','nvarchar',
@@ -220,7 +220,7 @@ class CommonSuite(Suite):
                 target_type="table",
                 platform=self.platform,
                 description="Rate of columns with PII-suggestive names",
-                sql=f"""
+                query=f"""
                     SELECT CAST(SUM(CASE
                         WHEN LOWER(column_name) LIKE '%ssn%' OR LOWER(column_name) LIKE '%email%'
                           OR LOWER(column_name) LIKE '%phone%' OR LOWER(column_name) LIKE '%address%'
@@ -245,7 +245,7 @@ class CommonSuite(Suite):
                 target_type="table",
                 platform=self.platform,
                 description="Percentage of _id columns with FK constraints",
-                sql=f"""
+                query=f"""
                     SELECT CAST(
                         SUM(CASE WHEN tc.constraint_type = 'FOREIGN KEY' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
@@ -276,7 +276,7 @@ class CommonSuite(Suite):
             name="null_rate",
             factor="clean", requirement="null_rate", target_type="column", platform=self.platform,
             description="Null rate for column",
-            sql=f"SELECT CAST(COUNT(*) - COUNT({q_col}) AS {self.cast_float}) / NULLIF(COUNT(*), 0) AS measured_value FROM {q_table}",
+            query=f"SELECT CAST(COUNT(*) - COUNT({q_col}) AS {self.cast_float}) / NULLIF(COUNT(*), 0) AS measured_value FROM {q_table}",
         ))
 
         # String columns
@@ -289,7 +289,7 @@ class CommonSuite(Suite):
                 name="pii_pattern_scan",
                 factor="clean", requirement="pii_detection_rate", target_type="column", platform=self.platform,
                 description="PII pattern match rate (SSN, email, phone)",
-                sql=f"""
+                query=f"""
                     SELECT CAST(SUM(CASE
                         WHEN {ssn_match} THEN 1
                         WHEN {email_match} THEN 1
@@ -306,7 +306,7 @@ class CommonSuite(Suite):
                 name="type_consistency",
                 factor="clean", requirement="type_inconsistency_rate", target_type="column", platform=self.platform,
                 description="Mixed type rate in string column",
-                sql=f"""
+                query=f"""
                     SELECT CASE
                         WHEN SUM(CASE WHEN {numeric_pattern_match} THEN 1 ELSE 0 END) > 0
                          AND SUM(CASE WHEN {numeric_pattern_not} THEN 1 ELSE 0 END) > 0
@@ -325,7 +325,7 @@ class CommonSuite(Suite):
                 name="zero_negative_check",
                 factor="clean", requirement="zero_negative_rate", target_type="column", platform=self.platform,
                 description="Rate of zero or negative values",
-                sql=f"SELECT CAST(SUM(CASE WHEN {q_col} <= 0 THEN 1 ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0) AS measured_value FROM {q_table}",
+                query=f"SELECT CAST(SUM(CASE WHEN {q_col} <= 0 THEN 1 ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0) AS measured_value FROM {q_table}",
             ))
 
         # Candidate key columns
@@ -334,7 +334,7 @@ class CommonSuite(Suite):
                 name="duplicate_detection",
                 factor="clean", requirement="duplicate_rate", target_type="column", platform=self.platform,
                 description="Duplicate rate for candidate key",
-                sql=f"SELECT 1.0 - (CAST(COUNT(DISTINCT {q_col}) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0)) AS measured_value FROM {q_table}",
+                query=f"SELECT 1.0 - (CAST(COUNT(DISTINCT {q_col}) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0)) AS measured_value FROM {q_table}",
             ))
 
         # Timestamp columns
@@ -344,7 +344,7 @@ class CommonSuite(Suite):
                 name="table_freshness",
                 factor="current", requirement="max_staleness_hours", target_type="column", platform=self.platform,
                 description="Hours since most recent value",
-                sql=f"SELECT {diff_expr} / 3600.0 AS measured_value FROM {q_table} WHERE {q_col} IS NOT NULL",
+                query=f"SELECT {diff_expr} / 3600.0 AS measured_value FROM {q_table} WHERE {q_col} IS NOT NULL",
             ))
 
         return tests
