@@ -5,74 +5,101 @@
         <img src="https://img.shields.io/badge/Code-Apache%202.0-blue.svg" alt="Code License: Apache 2.0"></a>
 <a href="https://creativecommons.org/licenses/by-sa/4.0/">
         <img src="https://img.shields.io/badge/Content-CC%20BY--SA%204.0-lightgrey.svg" alt="Content License: CC BY-SA 4.0"></a>
-
 </div>
 
 <p></p>
 
-# Introduction
+**Five factors that determine whether your data can reliably power AI systems.**
 
-The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The five factors of AI-ready data provide criteria to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
+An open standard defining what "AI-ready data" actually means, plus an assessment agent that turns the framework into executable, red/green test suites against your data infrastructure.
 
-## Background
+## Quick Start
 
-The contributors to this framework include practicing data engineers, ML practitioners, and platform architects who have built and operated AI systems across industries. This document synthesizes our collective experience building data systems that power reliable and trustworthy AI systems.
+```bash
+# Clone and install
+git clone https://github.com/[org]/ai-ready-data-framework.git
+cd ai-ready-data-framework
+make dev
+source .venv/bin/activate
 
-The format is inspired by Martin Fowler's work on defining technical patterns, the 12-Factor App methodology, and the 12 Factor Agent.
+# Install the driver for your database
+pip install psycopg2-binary              # PostgreSQL
+pip install snowflake-connector-python   # Snowflake
+pip install databricks-sql-connector     # Databricks
+pip install duckdb                       # DuckDB
 
-## Who should read this document?
+# Run the assessment
+python -m agent.cli assess --connection "postgresql://user:pass@localhost/mydb"
+```
 
-* **Data engineers** deploying pipelines that power AI systems.  
-* **Platform teams** designing infrastructure for ML and AI workloads.  
-* **Architects** evaluating whether their stack can support RAG, agents, or real-time inference.  
-* **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
-* **Web Crawlers** collecting training data 
-* **Coding Agents** building the infrastructure they'll eventually consume
+The agent works with any SQL database that supports `information_schema`. No vendor lock-in.
 
-*Special thanks...*
+## What's In This Repo
 
-## The Five Factors of AI-Ready Data
+### [The Framework](framework/)
 
-1. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
-2. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
-3. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems.
-4. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
-5. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
+The AI-Ready Data Framework defines five factors of AI-ready data with requirements at three workload levels (L1: Analytics, L2: RAG, L3: Training).
 
-These factors apply to any data system powering AI applications, regardless of tech stack.
+| Factor | Name | Definition |
+|---|---|---|
+| **0** | [**Clean**](framework/factor-00-clean.md) | Accurate, complete, valid, and free of errors |
+| **1** | [**Contextual**](framework/factor-01-contextual.md) | Meaning is explicit and co-located |
+| **2** | [**Consumable**](framework/factor-02-consumable.md) | Right format, right latency, right scale |
+| **3** | [**Current**](framework/factor-03-current.md) | Reflects the present state |
+| **4** | [**Correlated**](framework/factor-04-correlated.md) | Traceable from source to decision |
+| **5** | [**Compliant**](framework/factor-05-compliant.md) | Governed with AI-specific safeguards |
 
-- [A Brief History of Data](content/history-of-data.md)
-- [Factor 0: Clean](content/factor-00-clean.md)
-- [Factor 1: Contextual](content/factor-01-contextual.md)
-- [Factor 2: Consumable](content/factor-02-consumable.md)
-- [Factor 3: Current](content/factor-03-current.md)
-- [Factor 4: Correlated](content/factor-04-correlated.md)
-- [Factor 5: Compliant](content/factor-05-compliant.md)
+### [The Assessment Agent](agent/)
 
-## Reference guide
-### What exactly do you mean by "AI system"?
+A Python CLI with purpose-built test suites for each platform. Each suite uses the platform's native capabilities to their fullest -- not just ANSI SQL, but ACCOUNT_USAGE views, Unity Catalog system tables, Delta Lake history, and more. The output is a scored report showing which workload levels your data is ready for.
 
-An AI system is one that performs **inference** -- it accepts inputs (data values, feature vectors, prompts, documents), applies a learned function shaped by prior inputs (training data), and produces outputs (predictions, classifications, generated content, actions). If there is no inference, it is not an AI system.
+**The agent is strictly read-only.** It will never create, modify, or delete anything in your database. This is enforced at the connection layer (read-only transactions where the driver supports it) and the application layer (every SQL statement is validated before execution -- only SELECT, DESCRIBE, SHOW, and EXPLAIN are permitted). Grant it a read-only role for defense in depth.
 
-The boundary of the AI system is the model and its inference layer. Everything outside that boundary -- data ingestion, transformation, feature engineering, storage, serving -- belongs to the **data layer**, a separate system with its own responsibilities. The data layer's job is to ensure that what crosses the boundary is fit for consumption. This separation of concerns provides a few key benefits:
-* When the data layer satisfies the factors of AI-readiness, new AI consumers can be added without re-engineering data infrastructure.
-* Data readiness can be assessed and improved independently of any specific model or AI architecture.
-* Each system is accountable to its own contract -- data teams own data quality, ML teams own model performance, and failures can be isolated to one side of the boundary.
+**Available suites:**
 
-Our definition is intentionally broad and architecture-agnostic. AI systems may differ in architecture, autonomy, and risk profile, but they share the same fundamental structure: data in, learned function applied, output produced. 
+| Suite | What it uses |
+|---|---|
+| `common` | ANSI SQL + information_schema. Works on any SQL database. |
+| `snowflake` | ACCOUNT_USAGE, OBJECT_DEPENDENCIES, masking policies, Snowpipe, Dynamic Tables, TIME_TRAVEL |
+| `databricks` | Unity Catalog system tables, Delta Lake DESCRIBE HISTORY, column tags, table lineage |
 
-## Related Resources
+The suite is auto-detected from your connection. Or specify it: `--suite snowflake`
 
-- Contribute to this guide [here](#)
+### [Design & Architecture](packages/)
+
+Design decisions, architecture diagrams, and the project gameplan.
+
+## How It Works
+
+1. **Connect** -- Point the agent at your database
+2. **Discover** -- The agent enumerates schemas, tables, and columns
+3. **Generate** -- Column metadata is mapped to applicable tests from the framework
+4. **Execute** -- SQL queries run against your data, producing measurements
+5. **Score** -- Results are assessed against L1/L2/L3 thresholds
+6. **Report** -- A scored report shows exactly where you stand and what to fix
+7. **Save** -- Results are stored locally in SQLite (`~/.aird/assessments.db`) for history and diffing
+
+```bash
+# View assessment history
+python -m agent.cli history
+
+# Compare the two most recent assessments
+python -m agent.cli diff
+
+# Run an assessment and auto-compare against the previous one
+python -m agent.cli assess --connection "postgresql://..." --compare
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Contributors
 
-[CONTRIBUTOR LIST]
+@jacobprall - Jacob Prall, Snowflake
 
 ## License
 
-All content and images are licensed under a <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0 License</a>
+Content and images: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
-Code is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 License</a>
-
-
+Code: [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)

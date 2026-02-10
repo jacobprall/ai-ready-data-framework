@@ -10,7 +10,7 @@ Clean data is not perfect data. Perfection is neither achievable nor necessary. 
 
 ### Level 1: Descriptive Analytics and BI
 
-**Tolerance for dirty data: Moderate.** Humans are in the loop. They interpret results, notice anomalies, and ask clarifying questions before acting. A wrong number on a chart is a nuisance, not a catastrophe.
+**Tolerance for dirty data: Moderate.** Humans are in the loop. They interpret results, notice anomalies, and ask clarifying questions before acting.
 
 ### Level 2: RAG and Retrieval Systems
 
@@ -39,12 +39,6 @@ What must be true about the data at each level. Each level is additive.
 | **Label validation** | -- | -- | Labels and annotations are validated. Mislabeled data teaches the model to be wrong |
 | **Dataset versioning** | -- | -- | Training datasets are versioned with immutable snapshots bound to specific model versions |
 
-## The Common Thread
-
-Across all three levels, the same principles hold: preserve original data, document every decision, and never discard records without confidence in the decision. What changes is the rigor required and the consequences of failure.
-
-Clean data is Factor 0 because nothing else in the framework matters without it. Context, consumability, freshness, lineage, and compliance all assume that the underlying data is trustworthy. If it isn't, you are building on a foundation that will fail -- not loudly or immediately, but quietly and pervasively.
-
 ## Required Stack Capabilities
 
 What the platform must support to consistently meet these requirements. Each level is additive.
@@ -60,3 +54,9 @@ What the platform must support to consistently meet these requirements. Each lev
 | **Re-indexing / reprocessing** | -- | Re-indexing workflows that allow source documents to be corrected and re-embedded without rebuilding the entire index | -- |
 | **Quality monitoring** | -- | Retrieval quality monitoring -- visibility into which chunks are being surfaced, how frequently, and whether they produce satisfactory responses | -- |
 | **Label validation** | -- | -- | Label validation workflows, including inter-annotator agreement metrics where human labeling is involved |
+
+## The Common Thread
+
+Across all three levels, the same principles hold: preserve original data, document every decision, and never discard records without confidence in the decision. What changes is the rigor required and the consequences of failure.
+
+Clean data is Factor 0 because nothing else in the framework matters without it. Context, consumability, freshness, lineage, and compliance all assume that the underlying data is trustworthy. If it isn't, you are building on a foundation that will fail -- not loudly or immediately, but quietly and pervasively.

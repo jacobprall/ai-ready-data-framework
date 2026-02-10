@@ -1,83 +1,70 @@
-# AI Assistant Instructions
+# AI-Ready Data Framework -- Agent Instructions
 
-**IMPORTANT: Copy or merge this file into your project's CLAUDE.md file to activate agent personas.**
+## What This Repo Is
 
-## 🚨 MANDATORY PERSONA SELECTION
+This repo contains two things:
 
-**CRITICAL: You MUST adopt one of the specialized personas before proceeding with any work.**
+1. **The AI-Ready Data Framework** (`framework/`) -- an open standard defining what "AI-ready data" means across five factors. Content is licensed CC BY-SA 4.0.
 
-**BEFORE DOING ANYTHING ELSE**, you must read and adopt one of these personas:
+2. **The Assessment Agent** (`agent/`) -- a Python CLI with per-platform test suites that assess data against the framework. Code is licensed Apache 2.0.
 
-_[AGENT DESCRIPTIONS TBD]_
-
-**DO NOT PROCEED WITHOUT SELECTING A PERSONA.** Each persona has specific rules, workflows, and tools that you MUST follow exactly.
-
-## How to Choose Your Persona
-
-_[AGENT CHOICE GUIDE TBD]_
-
-## Project Context
-
-[CUSTOMIZE THIS SECTION FOR YOUR PROJECT]
-
-This project uses:
-- **Language/Framework**: [Add your stack here]
-- **Build Tool**: [Add your build commands]
-- **Testing**: [Add your test commands]  
-- **Architecture**: [Describe your project structure]
-
-## Core Principles (All Personas)
-
-1. **READ FIRST**: Always read at least 1500 lines to understand context fully
-2. **DELETE MORE THAN YOU ADD**: Complexity compounds into disasters
-3. **FOLLOW EXISTING PATTERNS**: Don't invent new approaches
-4. **BUILD AND TEST**: Run your build and test commands after changes
-5. **COMMIT FREQUENTLY**: Every 5-10 minutes for meaningful progress
-
-## File Structure Reference
-
-[CUSTOMIZE THIS SECTION FOR YOUR PROJECT]
+## Repo Structure
 
 ```
-./
-├── package.json          # [or your dependency file]
-├── src/                  # [your source directory]
-│   ├── [your modules]
-│   └── [your files]
-├── test/                 # [your test directory]
-├── .promptx/             # Agent personas (created by promptx init)
-│   └── personas/
-└── CLAUDE.md            # This file (after merging)
+framework/              Framework content (markdown). The standard itself.
+agent/schema/           Test result, report, and threshold JSON schemas. The contracts.
+agent/suites/           Per-platform test suites. Each suite covers all 5 factors.
+  base.py               Base Suite class all suites extend.
+  common.py             ANSI SQL baseline. Works on any SQL database.
+  snowflake.py          Snowflake-native suite (ACCOUNT_USAGE, TIME_TRAVEL, etc).
+  databricks.py         Databricks-native suite (Unity Catalog, Delta Lake).
+agent/queries/          Legacy SQL query files (being migrated to suites).
+agent/cli.py            CLI entry point.
+agent/discover.py       Environment discovery: connect, enumerate tables/columns.
+agent/execute.py        Test runner with read-only enforcement.
+agent/score.py          Scorer: aggregate results into per-factor, per-level scores.
+agent/report.py         Report generator: JSON + markdown output.
+agent/storage.py        Local SQLite storage for assessment history and diffing.
+tests/fixtures/         Sample databases for deterministic testing.
+packages/               Agent design doc and gameplan.
+v1/                     Archived v1 content (kept for reference).
 ```
 
-## Common Commands (All Personas)
+## Key Conventions
 
-[CUSTOMIZE THIS SECTION FOR YOUR PROJECT]
+- **The agent is strictly read-only.** Enforced at connection level (read-only transactions where supported) and application level (SQL validation rejects non-SELECT statements). Never write a query that mutates data.
+- **Suite-based architecture.** Each platform gets a full test suite that uses native capabilities. Suites extend CommonSuite, inheriting ANSI SQL tests and adding platform-specific ones.
+- **Three-level scoring.** Every test is assessed against L1 (BI), L2 (RAG), L3 (Training). One measurement, three verdicts.
+- **Content vs code.** Framework content in `framework/` is prose. Agent logic in `agent/` is implementation. Don't mix them.
 
-```bash
-# Build project
-[your build command]
+## When Writing Framework Content
 
-# Run tests  
-[your test command]
+- Write in Martin Fowler's style: declarative, concrete, no hyperbole.
+- Requirements state what must be true about the data, not how to achieve it.
+- The framework is vendor-agnostic. Never name a specific product as a requirement.
 
-# Lint code
-[your lint command]
+## When Writing Test Suites
 
-# Deploy locally
-[your deploy command]
-```
+- Extend `CommonSuite` (which extends `Suite`).
+- Override `database_tests()`, `table_tests()`, and `column_tests()`.
+- Call `super()` first to inherit common tests, then extend with platform-native tests.
+- Each test is a `Test` dataclass with inline SQL -- no external query files needed.
+- Use the platform's full capabilities. Don't limit yourself to ANSI SQL.
+- Set `platform=self.platform` on every test so the report shows which suite generated it.
 
-## CRITICAL REMINDER
+## When Writing Python Code
 
-**You CANNOT proceed without adopting a persona.** Each persona has:
-- Specific workflows and rules
-- Required tools and commands  
-- Success criteria and verification steps
-- Commit and progress requirements
+- Python 3.10+. Use type hints.
+- Core dependencies are minimal (pyyaml, rich). Database drivers are optional extras.
+- All test results must conform to `agent/suites/base.TestResult`.
+- All reports must conform to `agent/schema/report.json`.
+- Thresholds come from `agent/schema/thresholds-default.json` unless overridden.
 
-**Choose your persona now and follow its instructions exactly.**
+## Adding a New Platform Suite
 
----
-
-*Generated by promptx - Agent personas are in .promptx/personas/*
+1. Create `agent/suites/<platform>.py`
+2. Extend `CommonSuite`
+3. Override the three test methods, calling `super()` first
+4. Register in `agent/suites/__init__.py`
+5. Add connection logic in `agent/discover.py`
+6. Add to `pyproject.toml` optional dependencies
