@@ -35,10 +35,9 @@ Establish a read-only DB-API 2.0 connection to the user's database. This skill h
 ```
 Which database platform are you using?
 
-1. PostgreSQL
-2. Snowflake
-3. Databricks (Unity Catalog)
-4. DuckDB
+1. Snowflake
+2. DuckDB
+3. Other (community-supported -- see CONTRIBUTING.md)
 ```
 
 If the user provides a connection string directly, skip to Step 3.
@@ -47,53 +46,17 @@ If the user provides a connection string directly, skip to Step 3.
 
 ### Step 2: Construct Connection String
 
-**Load** `references/platforms.md` for platform-specific connection formats.
+**Load** `references/platforms.md` for the chosen platform's connection format, required parameters, environment variable fallbacks, and driver install commands.
 
-Based on the platform, collect the required parameters:
-
-**PostgreSQL:**
-```
-I need: host, port (default 5432), database name, username, password.
-Connection format: postgresql://user:pass@host:5432/dbname
-```
-
-**Snowflake:**
-```
-I need: account identifier, username, password, database, schema (optional),
-warehouse, role (optional).
-Connection format: snowflake://user:pass@account/database/schema?warehouse=WH&role=ROLE
-
-You can also set environment variables: SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, etc.
-```
-
-**Databricks:**
-```
-I need: workspace host, access token, catalog name, HTTP path to SQL warehouse.
-Connection format: databricks://token:ACCESS_TOKEN@host/catalog?http_path=...
-
-You can also set: DATABRICKS_HOST, DATABRICKS_TOKEN, DATABRICKS_HTTP_PATH
-```
-
-**DuckDB:**
-```
-I need: path to the .db file (or :memory: for in-memory).
-Connection format: duckdb://path/to/file.db
-```
+Collect the required parameters from the user, then construct the connection string using the format specified in the reference.
 
 **STOP**: Present the constructed connection string (with credentials masked) for confirmation.
 
 ### Step 3: Verify Driver
 
-Check if the required driver is installed. If not, provide the install command:
+**Load** `references/platforms.md` for the driver package and install command for the chosen platform.
 
-| Platform | Driver Package | Install Command |
-|----------|---------------|-----------------|
-| PostgreSQL | psycopg2-binary | `pip install psycopg2-binary` |
-| Snowflake | snowflake-connector-python | `pip install snowflake-connector-python` |
-| Databricks | databricks-sql-connector | `pip install databricks-sql-connector` |
-| DuckDB | duckdb | `pip install duckdb` |
-
-If the driver is missing, install it before proceeding.
+If the driver is missing, provide the install command from the reference and install it before proceeding.
 
 ### Step 4: Connect
 
@@ -124,7 +87,7 @@ If connection fails, diagnose:
 ## Output
 
 - A live DB-API 2.0 connection object
-- Detected platform identifier (snowflake, databricks, postgresql, duckdb, generic)
+- Detected platform identifier (snowflake, duckdb, or any community-registered platform, or generic)
 - Connection string (stored for re-use)
 
 ## Next Skill

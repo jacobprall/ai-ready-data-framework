@@ -18,6 +18,22 @@ from agent.suites.base import Test
 # ---------------------------------------------------------------------------
 
 class TestIsMaxThreshold:
+    """Tests for _is_max_threshold, which reads direction from threshold data first,
+    then falls back to the legacy hardcoded set."""
+
+    # --- Direction from threshold data (new behavior) ---
+
+    def test_reads_direction_max_from_data(self):
+        assert _is_max_threshold("null_rate", {"direction": "max", "L1": 0.10}) is True
+
+    def test_reads_direction_min_from_data(self):
+        assert _is_max_threshold("null_rate", {"direction": "min", "L1": 0.10}) is False
+
+    def test_direction_overrides_legacy(self):
+        """Even for a metric the legacy set says is min, direction='max' wins."""
+        assert _is_max_threshold("column_comment_coverage", {"direction": "max", "L1": 0.5}) is True
+
+    # --- Legacy fallback (no direction in data) ---
 
     def test_null_rate_is_max(self):
         assert _is_max_threshold("null_rate") is True
@@ -123,7 +139,17 @@ class TestGetThresholds:
 
     def test_existing_requirement(self, sample_thresholds):
         result = _get_thresholds(sample_thresholds, "clean", "null_rate")
-        assert result == {"L1": 0.10, "L2": 0.05, "L3": 0.01}
+        assert result["L1"] == 0.10
+        assert result["L2"] == 0.05
+        assert result["L3"] == 0.01
+
+    def test_preserves_direction(self, sample_thresholds):
+        result = _get_thresholds(sample_thresholds, "clean", "null_rate")
+        assert result.get("direction") == "max"
+
+    def test_preserves_min_direction(self, sample_thresholds):
+        result = _get_thresholds(sample_thresholds, "contextual", "column_comment_coverage")
+        assert result.get("direction") == "min"
 
     def test_missing_factor(self, sample_thresholds):
         result = _get_thresholds(sample_thresholds, "nonexistent", "null_rate")

@@ -110,11 +110,32 @@ class TestMergeContext:
         assert "analytics.orders" in merged.table_criticality
         assert "analytics.events" in merged.table_criticality
 
-    def test_bool_or_logic(self):
-        saved = UserContext(has_dbt=True)
-        interactive = UserContext(has_dbt=False)
+    def test_infrastructure_set_union(self):
+        saved = UserContext(infrastructure={"dbt", "catalog"})
+        interactive = UserContext(infrastructure={"otel"})
         merged = merge_context(saved, interactive)
-        assert merged.has_dbt is True
+        assert merged.infrastructure == {"dbt", "catalog", "otel"}
+
+    def test_infrastructure_backward_compat_properties(self):
+        """Legacy has_dbt/has_otel properties still work."""
+        ctx = UserContext(infrastructure={"dbt", "otel"})
+        assert ctx.has_dbt is True
+        assert ctx.has_otel is True
+        assert ctx.has_catalog is False
+        assert ctx.has_iceberg is False
+
+    def test_infrastructure_setter_adds_to_set(self):
+        """Legacy setters mutate the infrastructure set."""
+        ctx = UserContext()
+        ctx.has_dbt = True
+        ctx.has_iceberg = True
+        assert "dbt" in ctx.infrastructure
+        assert "iceberg" in ctx.infrastructure
+
+    def test_infrastructure_setter_removes_from_set(self):
+        ctx = UserContext(infrastructure={"dbt"})
+        ctx.has_dbt = False
+        assert "dbt" not in ctx.infrastructure
 
 
 class TestSerialization:
@@ -127,7 +148,7 @@ class TestSerialization:
         assert restored.known_pii_columns == sample_context.known_pii_columns
         assert restored.freshness_slas == sample_context.freshness_slas
         assert restored.table_criticality == sample_context.table_criticality
-        assert restored.has_dbt == sample_context.has_dbt
+        assert restored.infrastructure == sample_context.infrastructure
         assert restored.accepted_failures == sample_context.accepted_failures
 
     def test_empty_context_round_trip(self, empty_context):
@@ -142,11 +163,31 @@ class TestSerialization:
         ctx = _dict_to_context(d)
         assert ctx.target_level == "L1"
         assert ctx.excluded_schemas == []
-        assert ctx.has_dbt is False
+        assert ctx.infrastructure == set()
 
     def test_dict_to_context_handles_empty_dict(self):
         ctx = _dict_to_context({})
         assert ctx.target_level is None
+
+    def test_dict_to_context_legacy_booleans(self):
+        """Old YAML with has_dbt/has_otel booleans migrates to infrastructure set."""
+        d = {"has_dbt": True, "has_otel": True, "has_catalog": False, "has_iceberg": False}
+        ctx = _dict_to_context(d)
+        assert ctx.infrastructure == {"dbt", "otel"}
+        assert ctx.has_dbt is True
+        assert ctx.has_otel is True
+        assert ctx.has_catalog is False
+
+    def test_dict_to_context_new_infrastructure_list(self):
+        """New YAML with infrastructure list."""
+        d = {"infrastructure": ["dbt", "otel", "airflow"]}
+        ctx = _dict_to_context(d)
+        assert ctx.infrastructure == {"dbt", "otel", "airflow"}
+
+    def test_infrastructure_serializes_as_sorted_list(self):
+        ctx = UserContext(infrastructure={"otel", "dbt", "catalog"})
+        d = _context_to_dict(ctx)
+        assert d["infrastructure"] == ["catalog", "dbt", "otel"]
 
 
 class TestConnectionHash:

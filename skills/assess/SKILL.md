@@ -32,15 +32,9 @@ Generate tests from the appropriate platform suite, execute them against the dat
 
 ### Step 1: Select Test Suite
 
-The suite is auto-detected from the platform, or can be forced:
+The suite is auto-detected from the platform using the centralized platform registry (`agent/platforms.py`), or can be forced with `--suite <name>`. Each platform in the registry declares its associated suite class. Platforms without a dedicated suite fall back to `common` (ANSI SQL baseline).
 
-| Detected Platform | Suite | Tests Included |
-|-------------------|-------|----------------|
-| PostgreSQL | `common` | ANSI SQL baseline (15+ test types) |
-| DuckDB | `common` | ANSI SQL baseline |
-| Snowflake | `snowflake` | Common + 13 Snowflake-native tests (ACCOUNT_USAGE, TIME_TRAVEL, etc.) |
-| Databricks | `databricks` | Common + 11 Databricks-native tests (Unity Catalog, Delta Lake) |
-| Generic | `common` | ANSI SQL baseline |
+See `references/platforms.md` for the full list of platforms, their suites, and capabilities.
 
 To list available suites: `python -m agent.cli suites`
 

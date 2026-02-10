@@ -97,23 +97,23 @@ Discovery Results:
 - `is_candidate_key` -- PK/UNIQUE constraint OR name ends in `_id` / equals `id` (heuristic)
 - `has_comment` -- whether the column has a description (platform-dependent)
 
-**Platform detection probes:**
-- Snowflake: `SELECT CURRENT_ACCOUNT()`
-- Databricks: `SELECT current_metastore()`
-- PostgreSQL: `SELECT version()` containing "postgresql"
-- DuckDB: `SELECT version()` containing "duckdb"
+**Platform detection:**
+
+Platform detection is handled by the centralized platform registry (`agent/platforms.py`). Each registered platform defines a detection probe SQL and an optional match string. The registry is iterated in order until a probe succeeds.
+
+See `references/platforms.md` for the full list of supported platforms and their capabilities.
 
 **Provider detection:**
 - Iceberg: tries `SELECT * FROM "schema"."table".snapshots LIMIT 1`
 - OTEL: checks `AIRD_OTEL_ENDPOINT` env var or queries `otel_traces`
-- Both can be overridden by user context flags (`has_iceberg`, `has_otel`)
+- Both can be overridden by user context infrastructure set (e.g., `"otel" in infrastructure`)
 
 ### Step 4: Apply Context Exclusions
 
 If a `UserContext` is loaded, discovery automatically:
 - Skips tables in `excluded_schemas`
 - Skips tables in `excluded_tables`
-- Respects `has_iceberg` / `has_otel` flags (skips brittle probes when user declares availability)
+- Respects infrastructure set (e.g., `"iceberg"`, `"otel"`) to skip brittle probes when user declares availability
 
 After filtering, report what was excluded:
 

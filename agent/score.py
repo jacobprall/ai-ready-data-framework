@@ -243,16 +243,8 @@ def _build_user_context_section(user_context: Any, results: list[TestResult]) ->
         section["tests_influenced"] = context_influenced
 
     # Infrastructure context
-    infra: dict[str, bool] = {}
-    if user_context.has_dbt:
-        infra["dbt"] = True
-    if user_context.has_catalog:
-        infra["data_catalog"] = True
-    if user_context.has_otel:
-        infra["opentelemetry"] = True
-    if user_context.has_iceberg:
-        infra["iceberg"] = True
-    if infra:
-        section["infrastructure"] = infra
+    infra_set = getattr(user_context, "infrastructure", None) or set()
+    if infra_set:
+        section["infrastructure"] = sorted(infra_set)
 
     return section

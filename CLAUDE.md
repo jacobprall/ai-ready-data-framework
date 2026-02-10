@@ -25,12 +25,12 @@ framework/              Framework content (markdown). The standard itself.
 agent/schema/           Test result, report, and threshold JSON schemas. The contracts.
 agent/suites/           Per-platform test suites. Each suite covers all 5 factors.
   base.py               Base Suite class all suites extend.
-  common.py             ANSI SQL baseline. Works on any SQL database.
+  common.py             ANSI SQL baseline. Works on any SQL database (DuckDB, etc).
   snowflake.py          Snowflake-native suite (ACCOUNT_USAGE, TIME_TRAVEL, etc).
-  databricks.py         Databricks-native suite (Unity Catalog, Delta Lake).
 agent/queries/          Legacy SQL query files (being migrated to suites).
 agent/cli.py            CLI entry point.
 agent/context.py        User context model: business context that enriches the assessment.
+agent/platforms.py      Platform registry: centralizes driver, detection, and dialect knowledge.
 agent/discover.py       Environment discovery: connect, enumerate tables/columns.
 agent/manifest.py       Session manifest: tracks full assessment as readable markdown.
 agent/execute.py        Test runner with read-only enforcement.
@@ -49,7 +49,9 @@ skills/                 Composable agent skills. Each maps to a pipeline stage.
   remediate/SKILL.md    Fix generation from remediation templates.
   compare/SKILL.md      Cross-run diffing and progress tracking.
   references/           Shared reference material loaded by multiple skills.
+examples/               Community platform examples (Databricks, PostgreSQL, etc).
 AGENTS.md               Assessment playbook -- instructions for any agent running an assessment.
+CONTRIBUTING.md         Guide for adding new platforms and community contributions.
 tests/fixtures/         Sample databases for deterministic testing.
 packages/               Agent design doc and gameplan.
 v1/                     Archived v1 content (kept for reference).
@@ -58,8 +60,9 @@ v1/                     Archived v1 content (kept for reference).
 ## Key Conventions
 
 - **The agent is strictly read-only.** Enforced at connection level (read-only transactions where supported) and application level (SQL validation rejects non-SELECT statements). Never write a query that mutates data.
-- **Suite-based architecture.** Each platform gets a full test suite that uses native capabilities. Suites extend CommonSuite, inheriting ANSI SQL tests and adding platform-specific ones.
-- **Three-level scoring.** Every test is assessed against L1 (BI), L2 (RAG), L3 (Training). One measurement, three verdicts.
+- **Platform registry.** All platform knowledge (driver, detection, SQL dialect, type mappings) is centralized in `agent/platforms.py`. Adding a platform means registering a `Platform` dataclass -- no more editing 7-11 files.
+- **Suite-based architecture with dialect layer.** Each platform gets a full test suite that uses native capabilities. Suites extend CommonSuite, inheriting ANSI SQL tests and adding platform-specific ones. CommonSuite provides overridable dialect properties (`quote`, `cast_float`, `regex_match`, `epoch_diff`) so new platforms only override syntax, not entire test methods.
+- **Three-level scoring.** Every test is assessed against L1 (BI), L2 (RAG), L3 (Training). One measurement, three verdicts. Thresholds in `thresholds-default.json` are self-describing -- each includes a `direction` field ("max" or "min") so scoring logic doesn't rely on hardcoded lists.
 - **Content vs code.** Framework content in `framework/` is prose. Agent logic in `agent/` is implementation. Don't mix them.
 - **Interactive assessment.** The assessment supports a three-phase interactive flow (pre-assessment interview, post-discovery walkthrough, post-results triage). User context is stored in `UserContext` (`agent/context.py`) and persisted per connection at `~/.aird/contexts/`. The agent drives the conversation; the CLI accepts a `--context` YAML file.
 - **Composable skills.** The `skills/` directory contains agent skills that map 1:1 to pipeline stages. Each skill is a self-contained markdown document with YAML frontmatter, prerequisites, workflow steps, STOP points, and forward/back references. The top-level `skills/SKILL.md` is a router that detects user intent and jumps to the right skill. Skills compose via `**Load**` directives. Shared knowledge lives in `skills/references/`.
@@ -87,11 +90,14 @@ v1/                     Archived v1 content (kept for reference).
 - All reports must conform to `agent/schema/report.json`.
 - Thresholds come from `agent/schema/thresholds-default.json` unless overridden.
 
-## Adding a New Platform Suite
+## Built-in vs Community Platforms
 
-1. Create `agent/suites/<platform>.py`
-2. Extend `CommonSuite`
-3. Override the three test methods, calling `super()` first
-4. Register in `agent/suites/__init__.py`
-5. Add connection logic in `agent/discover.py`
-6. Add to `pyproject.toml` optional dependencies
+The agent ships with two built-in platforms: **Snowflake** (with a native suite) and **DuckDB** (using CommonSuite). All other platforms are community contributions.
+
+See `CONTRIBUTING.md` for the complete guide to adding a new platform. The short version:
+
+1. **Register the platform** via `register_platform()` with a `Platform` dataclass
+2. **Optionally create a suite** extending `CommonSuite` with platform-native tests
+3. **Submit a PR** adding your files to `examples/community-suites/`
+
+Working examples for PostgreSQL and Databricks live in `examples/community-suites/`.

@@ -52,7 +52,7 @@ Ask the user about their goals, data estate, and infrastructure context before c
 
 **Load** `connect/SKILL.md`
 
-Establish a read-only connection to the user's database. Supports PostgreSQL, Snowflake, Databricks, and DuckDB.
+Establish a read-only connection to the user's database. Built-in support for Snowflake and DuckDB. Community platforms can be registered via the platform registry.
 
 **STOP**: Confirm connection is established.
 

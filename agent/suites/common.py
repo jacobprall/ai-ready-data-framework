@@ -2,6 +2,10 @@
 
 This suite works on any SQL database that supports information_schema.
 Platform suites extend this with native capabilities.
+
+The SQL dialect layer (quote, cast_float, regex_match, epoch_diff) is
+overridable so that a MySQLSuite or DatabricksSuite can change quoting and
+function syntax without reimplementing every test.
 """
 
 from __future__ import annotations
@@ -21,6 +25,38 @@ class CommonSuite(Suite):
         return "ANSI SQL + information_schema baseline. Works on any SQL database."
 
     # ------------------------------------------------------------------
+    # SQL dialect layer -- override these for non-ANSI platforms
+    # ------------------------------------------------------------------
+
+    @property
+    def quote(self) -> str:
+        """Identifier quote character. Override for MySQL (backtick)."""
+        return '"'
+
+    @property
+    def cast_float(self) -> str:
+        """Float type name for CAST. Override for MySQL (DOUBLE)."""
+        return "FLOAT"
+
+    def regex_match(self, column: str, pattern: str) -> str:
+        """SQL expression for regex matching. Override for MySQL (REGEXP)."""
+        return f"{column} SIMILAR TO '{pattern}'"
+
+    def epoch_diff(self, ts1: str, ts2: str) -> str:
+        """SQL expression for seconds between two timestamps.
+
+        Returns an expression that evaluates to the number of seconds
+        between ts1 and ts2 (ts1 - ts2).
+        Override for MySQL (TIMESTAMPDIFF), Snowflake (DATEDIFF), etc.
+        """
+        return f"EXTRACT(EPOCH FROM ({ts1} - {ts2}))"
+
+    def _q(self, *parts: str) -> str:
+        """Quote and join identifier parts: _q('schema', 'table') -> '"schema"."table"'."""
+        q = self.quote
+        return ".".join(f"{q}{p}{q}" for p in parts)
+
+    # ------------------------------------------------------------------
     # Database-level tests
     # ------------------------------------------------------------------
 
@@ -34,9 +70,9 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with non-empty descriptions",
-                sql="""
+                sql=f"""
                     SELECT CAST(
-                        SUM(CASE WHEN t.comment IS NOT NULL AND t.comment != '' THEN 1 ELSE 0 END) AS FLOAT
+                        SUM(CASE WHEN t.comment IS NOT NULL AND t.comment != '' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
                     FROM information_schema.tables t
                     WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA')
@@ -51,13 +87,13 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with at least one timestamp column",
-                sql="""
+                sql=f"""
                     SELECT CAST(
                         COUNT(DISTINCT CASE
                             WHEN c.data_type IN ('timestamp', 'datetime', 'date', 'timestamptz',
                                                  'timestamp with time zone', 'timestamp without time zone',
                                                  'TIMESTAMP_LTZ', 'TIMESTAMP_NTZ', 'TIMESTAMP_TZ')
-                            THEN c.table_name END) AS FLOAT
+                            THEN c.table_name END) AS {self.cast_float}
                     ) / NULLIF(COUNT(DISTINCT c.table_name), 0) AS measured_value
                     FROM information_schema.columns c
                     JOIN information_schema.tables t
@@ -74,9 +110,9 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with PK or unique constraints",
-                sql="""
+                sql=f"""
                     SELECT CAST(
-                        COUNT(DISTINCT tc.table_name) AS FLOAT
+                        COUNT(DISTINCT tc.table_name) AS {self.cast_float}
                     ) / NULLIF(
                         (SELECT COUNT(*) FROM information_schema.tables
                          WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA')
@@ -95,9 +131,9 @@ class CommonSuite(Suite):
                 target_type="database",
                 platform=self.platform,
                 description="Percentage of tables with explicit access grants beyond public",
-                sql="""
+                sql=f"""
                     SELECT CAST(
-                        COUNT(DISTINCT tp.table_name) AS FLOAT
+                        COUNT(DISTINCT tp.table_name) AS {self.cast_float}
                     ) / NULLIF(
                         (SELECT COUNT(*) FROM information_schema.tables
                          WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA')
@@ -126,7 +162,7 @@ class CommonSuite(Suite):
                 description="Percentage of columns with descriptions",
                 sql=f"""
                     SELECT CAST(
-                        SUM(CASE WHEN comment IS NOT NULL AND comment != '' THEN 1 ELSE 0 END) AS FLOAT
+                        SUM(CASE WHEN comment IS NOT NULL AND comment != '' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
                     FROM information_schema.columns
                     WHERE table_schema = '{table.schema}' AND table_name = '{table.name}'
@@ -140,7 +176,7 @@ class CommonSuite(Suite):
                 platform=self.platform,
                 description="Percentage of columns following the dominant naming convention",
                 sql=f"""
-                    SELECT CAST(MAX(convention_count) AS FLOAT) / NULLIF(SUM(convention_count), 0) AS measured_value
+                    SELECT CAST(MAX(convention_count) AS {self.cast_float}) / NULLIF(SUM(convention_count), 0) AS measured_value
                     FROM (
                         SELECT CASE
                             WHEN column_name = LOWER(column_name) AND column_name LIKE '%\\_%' ESCAPE '\\' THEN 'snake_case'
@@ -171,7 +207,7 @@ class CommonSuite(Suite):
                         'numeric','real','number','varchar','char','text','string','nvarchar',
                         'character varying','boolean','bool','timestamp','datetime','date',
                         'timestamptz','json','jsonb','variant','array','object','vector'
-                    ) THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value
+                    ) THEN 1 ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT(*), 0) AS measured_value
                     FROM information_schema.columns
                     WHERE table_schema = '{table.schema}' AND table_name = '{table.name}'
                 """,
@@ -192,7 +228,7 @@ class CommonSuite(Suite):
                           OR LOWER(column_name) LIKE '%salary%' OR LOWER(column_name) LIKE '%credit_card%'
                           OR LOWER(column_name) LIKE '%first_name%' OR LOWER(column_name) LIKE '%last_name%'
                           OR LOWER(column_name) LIKE '%full_name%' OR LOWER(column_name) LIKE '%social_security%'
-                        THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value
+                        THEN 1 ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT(*), 0) AS measured_value
                     FROM information_schema.columns
                     WHERE table_schema = '{table.schema}' AND table_name = '{table.name}'
                 """,
@@ -211,7 +247,7 @@ class CommonSuite(Suite):
                 description="Percentage of _id columns with FK constraints",
                 sql=f"""
                     SELECT CAST(
-                        SUM(CASE WHEN tc.constraint_type = 'FOREIGN KEY' THEN 1 ELSE 0 END) AS FLOAT
+                        SUM(CASE WHEN tc.constraint_type = 'FOREIGN KEY' THEN 1 ELSE 0 END) AS {self.cast_float}
                     ) / NULLIF(COUNT(*), 0) AS measured_value
                     FROM information_schema.columns c
                     LEFT JOIN information_schema.key_column_usage kcu
@@ -232,44 +268,54 @@ class CommonSuite(Suite):
     def column_tests(self, table: TableInfo, column: ColumnInfo) -> list[Test]:
         tests: list[Test] = []
         s, t, c = table.schema, table.name, column.name
+        q_table = self._q(s, t)
+        q_col = self._q(c)
 
         # Factor 0: Clean -- all columns
         tests.append(Test(
             name="null_rate",
             factor="clean", requirement="null_rate", target_type="column", platform=self.platform,
             description="Null rate for column",
-            sql=f'SELECT CAST(COUNT(*) - COUNT("{c}") AS FLOAT) / NULLIF(COUNT(*), 0) AS measured_value FROM "{s}"."{t}"',
+            sql=f"SELECT CAST(COUNT(*) - COUNT({q_col}) AS {self.cast_float}) / NULLIF(COUNT(*), 0) AS measured_value FROM {q_table}",
         ))
 
         # String columns
         if column.is_string:
+            # PII pattern scan using dialect-aware regex
+            ssn_match = self.regex_match(q_col, '[0-9]{3}-[0-9]{2}-[0-9]{4}')
+            email_match = self.regex_match(q_col, '%@%.%')
+            phone_match = self.regex_match(q_col, '[0-9]{3}[-.][0-9]{3}[-.][0-9]{4}')
             tests.append(Test(
                 name="pii_pattern_scan",
                 factor="clean", requirement="pii_detection_rate", target_type="column", platform=self.platform,
                 description="PII pattern match rate (SSN, email, phone)",
                 sql=f"""
                     SELECT CAST(SUM(CASE
-                        WHEN "{c}" SIMILAR TO '[0-9]{{3}}-[0-9]{{2}}-[0-9]{{4}}' THEN 1
-                        WHEN "{c}" SIMILAR TO '%@%.%' THEN 1
-                        WHEN "{c}" SIMILAR TO '[0-9]{{3}}[-.][0-9]{{3}}[-.][0-9]{{4}}' THEN 1
-                        ELSE 0 END) AS FLOAT) / NULLIF(COUNT("{c}"), 0) AS measured_value
-                    FROM "{s}"."{t}"
+                        WHEN {ssn_match} THEN 1
+                        WHEN {email_match} THEN 1
+                        WHEN {phone_match} THEN 1
+                        ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0) AS measured_value
+                    FROM {q_table}
                 """,
             ))
+
+            # Type consistency using dialect-aware regex
+            numeric_pattern_match = self.regex_match(q_col, '-?[0-9]+\\.?[0-9]*')
+            numeric_pattern_not = f"NOT ({numeric_pattern_match})"
             tests.append(Test(
                 name="type_consistency",
                 factor="clean", requirement="type_inconsistency_rate", target_type="column", platform=self.platform,
                 description="Mixed type rate in string column",
                 sql=f"""
                     SELECT CASE
-                        WHEN SUM(CASE WHEN "{c}" SIMILAR TO '-?[0-9]+\\.?[0-9]*' THEN 1 ELSE 0 END) > 0
-                         AND SUM(CASE WHEN "{c}" NOT SIMILAR TO '-?[0-9]+\\.?[0-9]*' THEN 1 ELSE 0 END) > 0
+                        WHEN SUM(CASE WHEN {numeric_pattern_match} THEN 1 ELSE 0 END) > 0
+                         AND SUM(CASE WHEN {numeric_pattern_not} THEN 1 ELSE 0 END) > 0
                         THEN CAST(LEAST(
-                            SUM(CASE WHEN "{c}" SIMILAR TO '-?[0-9]+\\.?[0-9]*' THEN 1 ELSE 0 END),
-                            SUM(CASE WHEN "{c}" NOT SIMILAR TO '-?[0-9]+\\.?[0-9]*' THEN 1 ELSE 0 END)
-                        ) AS FLOAT) / NULLIF(COUNT("{c}"), 0)
+                            SUM(CASE WHEN {numeric_pattern_match} THEN 1 ELSE 0 END),
+                            SUM(CASE WHEN {numeric_pattern_not} THEN 1 ELSE 0 END)
+                        ) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0)
                         ELSE 0 END AS measured_value
-                    FROM "{s}"."{t}"
+                    FROM {q_table}
                 """,
             ))
 
@@ -279,7 +325,7 @@ class CommonSuite(Suite):
                 name="zero_negative_check",
                 factor="clean", requirement="zero_negative_rate", target_type="column", platform=self.platform,
                 description="Rate of zero or negative values",
-                sql=f'SELECT CAST(SUM(CASE WHEN "{c}" <= 0 THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT("{c}"), 0) AS measured_value FROM "{s}"."{t}"',
+                sql=f"SELECT CAST(SUM(CASE WHEN {q_col} <= 0 THEN 1 ELSE 0 END) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0) AS measured_value FROM {q_table}",
             ))
 
         # Candidate key columns
@@ -288,16 +334,17 @@ class CommonSuite(Suite):
                 name="duplicate_detection",
                 factor="clean", requirement="duplicate_rate", target_type="column", platform=self.platform,
                 description="Duplicate rate for candidate key",
-                sql=f'SELECT 1.0 - (CAST(COUNT(DISTINCT "{c}") AS FLOAT) / NULLIF(COUNT("{c}"), 0)) AS measured_value FROM "{s}"."{t}"',
+                sql=f"SELECT 1.0 - (CAST(COUNT(DISTINCT {q_col}) AS {self.cast_float}) / NULLIF(COUNT({q_col}), 0)) AS measured_value FROM {q_table}",
             ))
 
         # Timestamp columns
         if column.is_timestamp:
+            diff_expr = self.epoch_diff("CURRENT_TIMESTAMP", f"MAX({q_col})")
             tests.append(Test(
                 name="table_freshness",
                 factor="current", requirement="max_staleness_hours", target_type="column", platform=self.platform,
                 description="Hours since most recent value",
-                sql=f'SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MAX("{c}"))) / 3600.0 AS measured_value FROM "{s}"."{t}" WHERE "{c}" IS NOT NULL',
+                sql=f"SELECT {diff_expr} / 3600.0 AS measured_value FROM {q_table} WHERE {q_col} IS NOT NULL",
             ))
 
         return tests

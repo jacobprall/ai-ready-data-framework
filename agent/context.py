@@ -64,11 +64,8 @@ class UserContext:
     confirmed_keys: list[str] = field(default_factory=list)         # columns confirmed as unique keys
     not_keys: list[str] = field(default_factory=list)               # columns that look like keys but aren't
 
-    # Infrastructure context
-    has_dbt: bool = False
-    has_catalog: bool = False
-    has_otel: bool = False
-    has_iceberg: bool = False
+    # Infrastructure context -- set of tool names (e.g., "dbt", "catalog", "otel", "iceberg")
+    infrastructure: set[str] = field(default_factory=set)
 
     # Free-text context
     known_issues: list[str] = field(default_factory=list)           # pain points the user already knows about
@@ -76,6 +73,51 @@ class UserContext:
 
     # Accepted failures from previous triage (requirement|target)
     accepted_failures: list[str] = field(default_factory=list)
+
+    # Backward-compatible properties for infrastructure booleans
+    @property
+    def has_dbt(self) -> bool:
+        return "dbt" in self.infrastructure
+
+    @has_dbt.setter
+    def has_dbt(self, value: bool) -> None:
+        if value:
+            self.infrastructure.add("dbt")
+        else:
+            self.infrastructure.discard("dbt")
+
+    @property
+    def has_catalog(self) -> bool:
+        return "catalog" in self.infrastructure
+
+    @has_catalog.setter
+    def has_catalog(self, value: bool) -> None:
+        if value:
+            self.infrastructure.add("catalog")
+        else:
+            self.infrastructure.discard("catalog")
+
+    @property
+    def has_otel(self) -> bool:
+        return "otel" in self.infrastructure
+
+    @has_otel.setter
+    def has_otel(self, value: bool) -> None:
+        if value:
+            self.infrastructure.add("otel")
+        else:
+            self.infrastructure.discard("otel")
+
+    @property
+    def has_iceberg(self) -> bool:
+        return "iceberg" in self.infrastructure
+
+    @has_iceberg.setter
+    def has_iceberg(self, value: bool) -> None:
+        if value:
+            self.infrastructure.add("iceberg")
+        else:
+            self.infrastructure.discard("iceberg")
 
     def is_table_excluded(self, schema: str, table_name: str) -> bool:
         """Check if a table should be excluded from assessment."""
@@ -183,10 +225,7 @@ def merge_context(saved: UserContext, interactive: UserContext) -> UserContext:
 
     # Scalars: interactive wins if set
     merged.target_level = interactive.target_level or saved.target_level
-    merged.has_dbt = interactive.has_dbt or saved.has_dbt
-    merged.has_catalog = interactive.has_catalog or saved.has_catalog
-    merged.has_otel = interactive.has_otel or saved.has_otel
-    merged.has_iceberg = interactive.has_iceberg or saved.has_iceberg
+    merged.infrastructure = saved.infrastructure | interactive.infrastructure
     merged.notes = interactive.notes or saved.notes
 
     # Lists: union and deduplicate (case-insensitive)
@@ -235,10 +274,7 @@ def _context_to_dict(ctx: UserContext) -> dict[str, Any]:
         "freshness_slas": ctx.freshness_slas,
         "confirmed_keys": ctx.confirmed_keys,
         "not_keys": ctx.not_keys,
-        "has_dbt": ctx.has_dbt,
-        "has_catalog": ctx.has_catalog,
-        "has_otel": ctx.has_otel,
-        "has_iceberg": ctx.has_iceberg,
+        "infrastructure": sorted(ctx.infrastructure),
         "known_issues": ctx.known_issues,
         "notes": ctx.notes,
         "accepted_failures": ctx.accepted_failures,
@@ -246,7 +282,31 @@ def _context_to_dict(ctx: UserContext) -> dict[str, Any]:
 
 
 def _dict_to_context(data: dict[str, Any]) -> UserContext:
-    """Convert a plain dict (from YAML) to a UserContext."""
+    """Convert a plain dict (from YAML) to a UserContext.
+
+    Supports both the new infrastructure set format and the legacy boolean format
+    (has_dbt, has_catalog, has_otel, has_iceberg) for backward compatibility.
+    """
+    # Build infrastructure set from new or legacy format
+    infra: set[str] = set()
+    if "infrastructure" in data:
+        raw = data["infrastructure"]
+        if isinstance(raw, (list, set)):
+            infra = set(raw)
+        elif isinstance(raw, dict):
+            # Handle {tool: True/False} format
+            infra = {k for k, v in raw.items() if v}
+    else:
+        # Legacy boolean format -- migrate to set
+        if data.get("has_dbt", False):
+            infra.add("dbt")
+        if data.get("has_catalog", False):
+            infra.add("catalog")
+        if data.get("has_otel", False):
+            infra.add("otel")
+        if data.get("has_iceberg", False):
+            infra.add("iceberg")
+
     return UserContext(
         target_level=data.get("target_level"),
         excluded_schemas=data.get("excluded_schemas", []),
@@ -258,10 +318,7 @@ def _dict_to_context(data: dict[str, Any]) -> UserContext:
         freshness_slas=data.get("freshness_slas", {}),
         confirmed_keys=data.get("confirmed_keys", []),
         not_keys=data.get("not_keys", []),
-        has_dbt=data.get("has_dbt", False),
-        has_catalog=data.get("has_catalog", False),
-        has_otel=data.get("has_otel", False),
-        has_iceberg=data.get("has_iceberg", False),
+        infrastructure=infra,
         known_issues=data.get("known_issues", []),
         notes=data.get("notes", ""),
         accepted_failures=data.get("accepted_failures", []),

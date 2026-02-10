@@ -19,20 +19,17 @@ An open standard defining what "AI-ready data" actually means, plus an assessmen
 # Clone and install
 git clone https://github.com/[org]/ai-ready-data-framework.git
 cd ai-ready-data-framework
-make dev
-source .venv/bin/activate
+pip install -e "./agent"
 
 # Install the driver for your database
-pip install psycopg2-binary              # PostgreSQL
 pip install snowflake-connector-python   # Snowflake
-pip install databricks-sql-connector     # Databricks
-pip install duckdb                       # DuckDB
+pip install duckdb                       # DuckDB (also used for local testing)
 
 # Run the assessment
-python -m agent.cli assess --connection "postgresql://user:pass@localhost/mydb"
+python -m agent.cli assess --connection "snowflake://user:pass@account/db/schema?warehouse=WH"
 ```
 
-The agent works with any SQL database that supports `information_schema`. 
+Built-in support for **Snowflake** (with a full platform-native suite) and **DuckDB** (ANSI SQL baseline). Community platforms (PostgreSQL, Databricks, MySQL, etc.) can be added via the platform registry -- see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## What's In This Repo
 
@@ -51,17 +48,18 @@ The AI-Ready Data Framework defines five factors of AI-ready data with requireme
 
 ### [The Assessment Agent](agent/)
 
-A Python CLI with purpose-built test suites for each platform. Each suite uses the platform's native capabilities to their fullest -- not just ANSI SQL, but ACCOUNT_USAGE views, Unity Catalog system tables, Delta Lake history, and more. The output is a scored report showing which workload levels your data is ready for.
+A Python CLI with purpose-built test suites. The output is a scored report showing which workload levels your data is ready for.
 
 **The agent is strictly read-only.** It will never create, modify, or delete anything in your database. This is enforced at the connection layer (read-only transactions where the driver supports it) and the application layer (every SQL statement is validated before execution -- only SELECT, DESCRIBE, SHOW, and EXPLAIN are permitted). Grant it a read-only role for defense in depth.
 
-**Available suites:**
+**Built-in suites:**
 
 | Suite | What it uses |
 |---|---|
-| `common` | ANSI SQL + information_schema. Works on any SQL database. |
+| `common` | ANSI SQL + information_schema. Works on any SQL database (DuckDB, etc). |
 | `snowflake` | ACCOUNT_USAGE, OBJECT_DEPENDENCIES, masking policies, Snowpipe, Dynamic Tables, TIME_TRAVEL |
-| `databricks` | Unity Catalog system tables, Delta Lake DESCRIBE HISTORY, column tags, table lineage |
+
+**Community suites** for Databricks, PostgreSQL, and more are in `examples/community-suites/`. Adding a new platform is straightforward -- see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The suite is auto-detected from your connection. Or specify it: `--suite snowflake`
 
@@ -87,7 +85,7 @@ python -m agent.cli history
 python -m agent.cli diff
 
 # Run an assessment and auto-compare against the previous one
-python -m agent.cli assess --connection "postgresql://..." --compare
+python -m agent.cli assess --connection "snowflake://..." --compare
 ```
 
 ## Contributing

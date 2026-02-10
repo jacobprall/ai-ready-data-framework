@@ -1,18 +1,16 @@
 """CLI entry point for the AI-Ready Data Assessment Agent.
 
 Usage:
-    python -m agent.cli assess --connection "postgresql://user:pass@localhost/mydb"
     python -m agent.cli assess --connection "snowflake://user:pass@account/db" --schema analytics
-    python -m agent.cli assess --connection "databricks://token:xxx@host/catalog?http_path=..."
     python -m agent.cli assess --connection "duckdb://path/to/data.db" --output markdown
     python -m agent.cli history
     python -m agent.cli diff
 
 Install the driver for your database:
-    pip install psycopg2-binary              # PostgreSQL
     pip install snowflake-connector-python   # Snowflake
-    pip install databricks-sql-connector     # Databricks
     pip install duckdb                       # DuckDB
+
+Community platforms: see CONTRIBUTING.md and examples/community-suites/.
 """
 
 from __future__ import annotations

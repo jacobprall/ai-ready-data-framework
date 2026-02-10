@@ -137,10 +137,7 @@ def sample_context() -> UserContext:
         freshness_slas={"analytics.orders": 2, "analytics.dim_country": 720},
         confirmed_keys=["analytics.events.event_id"],
         not_keys=["analytics.products.product_id"],
-        has_dbt=False,
-        has_catalog=False,
-        has_otel=False,
-        has_iceberg=False,
+        infrastructure=set(),
         known_issues=["High null rate in orders.customer_id"],
         accepted_failures=["null_rate|analytics.customers.middle_name"],
     )
@@ -216,25 +213,25 @@ def sample_thresholds() -> dict:
     """Default thresholds for testing scoring."""
     return {
         "clean": {
-            "null_rate": {"L1": 0.10, "L2": 0.05, "L3": 0.01},
-            "duplicate_rate": {"L1": 0.05, "L2": 0.02, "L3": 0.005},
-            "pii_detection_rate": {"L1": None, "L2": 0.0, "L3": 0.0},
-            "zero_negative_rate": {"L1": 0.20, "L2": 0.10, "L3": 0.05},
+            "null_rate": {"direction": "max", "L1": 0.10, "L2": 0.05, "L3": 0.01},
+            "duplicate_rate": {"direction": "max", "L1": 0.05, "L2": 0.02, "L3": 0.005},
+            "pii_detection_rate": {"direction": "max", "L1": None, "L2": 0.0, "L3": 0.0},
+            "zero_negative_rate": {"direction": "max", "L1": 0.20, "L2": 0.10, "L3": 0.05},
         },
         "contextual": {
-            "column_comment_coverage": {"L1": 0.50, "L2": 0.90, "L3": 0.95},
-            "table_comment_coverage": {"L1": 0.50, "L2": 0.90, "L3": 0.95},
-            "naming_consistency": {"L1": 0.50, "L2": 0.80, "L3": 0.90},
-            "foreign_key_coverage": {"L1": 0.30, "L2": 0.70, "L3": 0.90},
+            "column_comment_coverage": {"direction": "min", "L1": 0.50, "L2": 0.90, "L3": 0.95},
+            "table_comment_coverage": {"direction": "min", "L1": 0.50, "L2": 0.90, "L3": 0.95},
+            "naming_consistency": {"direction": "min", "L1": 0.50, "L2": 0.80, "L3": 0.90},
+            "foreign_key_coverage": {"direction": "min", "L1": 0.30, "L2": 0.70, "L3": 0.90},
         },
         "current": {
-            "max_staleness_hours": {"L1": 168, "L2": 24, "L3": 6},
+            "max_staleness_hours": {"direction": "max", "L1": 168, "L2": 24, "L3": 6},
         },
         "correlated": {
-            "constraint_coverage": {"L1": 0.50, "L2": 0.80, "L3": 0.95},
+            "constraint_coverage": {"direction": "min", "L1": 0.50, "L2": 0.80, "L3": 0.95},
         },
         "compliant": {
-            "rbac_coverage": {"L1": 0.30, "L2": 0.70, "L3": 0.90},
-            "pii_column_name_rate": {"L1": None, "L2": 0.0, "L3": 0.0},
+            "rbac_coverage": {"direction": "min", "L1": 0.30, "L2": 0.70, "L3": 0.90},
+            "pii_column_name_rate": {"direction": "max", "L1": None, "L2": 0.0, "L3": 0.0},
         },
     }

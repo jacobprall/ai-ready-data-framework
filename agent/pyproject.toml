@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aird-agent"
 version = "0.1.0"
 description = "AI-Ready Data Assessment Agent -- vendor-neutral, open-standards-first"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml",
@@ -15,10 +15,8 @@ dependencies = [
 
 [project.optional-dependencies]
 snowflake = ["snowflake-connector-python"]
-databricks = ["databricks-sql-connector"]
-postgres = ["psycopg2-binary"]
 duckdb = ["duckdb"]
-all = ["snowflake-connector-python", "databricks-sql-connector", "psycopg2-binary", "duckdb"]
+all = ["snowflake-connector-python", "duckdb"]
 dev = ["pytest", "pytest-cov", "ruff", "duckdb"]
 
 [project.scripts]

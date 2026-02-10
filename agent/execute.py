@@ -150,7 +150,7 @@ def execute_test(
             threshold = req_thresholds.get(level)
             if threshold is not None:
                 status = result.get(level, "skip")
-                is_max = _is_max_threshold(test.requirement)
+                is_max = _is_max_threshold(test.requirement, req_thresholds)
                 op = "<=" if is_max else ">="
                 parts.append(f"{level}: {status} ({op}{threshold})")
         detail = f"Measured {measured_value:.4f}. {'; '.join(parts)}"
@@ -215,16 +215,35 @@ def _error_result(test: Test, error: str, thresholds: dict) -> TestResult:
     )
 
 
-def _get_thresholds(thresholds: dict, factor: str, requirement: str) -> dict[str, float | None]:
+def _get_thresholds(thresholds: dict, factor: str, requirement: str) -> dict[str, Any]:
+    """Extract per-level thresholds for a requirement, preserving direction metadata."""
     factor_thresholds = thresholds.get(factor, {})
     req_thresholds = factor_thresholds.get(requirement, {})
     if isinstance(req_thresholds, dict):
-        return {"L1": req_thresholds.get("L1"), "L2": req_thresholds.get("L2"), "L3": req_thresholds.get("L3")}
+        result: dict[str, Any] = {
+            "L1": req_thresholds.get("L1"),
+            "L2": req_thresholds.get("L2"),
+            "L3": req_thresholds.get("L3"),
+        }
+        # Preserve direction metadata for self-describing thresholds
+        if "direction" in req_thresholds:
+            result["direction"] = req_thresholds["direction"]
+        return result
     return {"L1": None, "L2": None, "L3": None}
 
 
-def _is_max_threshold(requirement: str) -> bool:
-    """Returns True if threshold is a maximum (lower is better)."""
+def _is_max_threshold(requirement: str, thresholds: dict | None = None) -> bool:
+    """Returns True if threshold is a maximum (lower is better).
+
+    Reads the 'direction' field from threshold data when available.
+    Falls back to a hardcoded set for backward compatibility with threshold
+    files that predate the direction field.
+    """
+    # Prefer self-describing direction from threshold data
+    if thresholds and "direction" in thresholds:
+        return thresholds["direction"] == "max"
+
+    # Legacy fallback: hardcoded min-threshold set
     min_thresholds = {
         "column_comment_coverage", "table_comment_coverage", "foreign_key_coverage",
         "naming_consistency", "ai_compatible_type_rate", "timestamp_column_coverage",
@@ -236,7 +255,7 @@ def _is_max_threshold(requirement: str) -> bool:
 
 def _score(measured_value: float | None, thresholds: dict[str, float | None], requirement: str) -> dict[str, str]:
     result: dict[str, str] = {}
-    is_max = _is_max_threshold(requirement)
+    is_max = _is_max_threshold(requirement, thresholds)
     for level in ["L1", "L2", "L3"]:
         threshold = thresholds.get(level)
         if threshold is None:

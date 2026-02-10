@@ -2,37 +2,9 @@
 
 Shared reference for all supported database platforms. Loaded by `connect/SKILL.md` when constructing connection strings.
 
-## PostgreSQL
+## Built-in Platforms
 
-**Connection format:**
-```
-postgresql://user:password@host:port/database
-```
-
-**Parameters:**
-| Parameter | Required | Default | Notes |
-|-----------|----------|---------|-------|
-| user | Yes | -- | Database username |
-| password | Yes | -- | Database password |
-| host | Yes | -- | Hostname or IP |
-| port | No | 5432 | PostgreSQL port |
-| database | Yes | -- | Database name |
-
-**Driver:** `pip install psycopg2-binary`
-
-**Read-only enforcement:** Connection is opened with `SET default_transaction_read_only = ON` and `autocommit = True`.
-
-**Capabilities:**
-- Full `information_schema` support
-- Constraint discovery (PK, FK, UNIQUE)
-- Column comments via `pg_catalog.pg_description`
-- Table comments via `pg_catalog.pg_description`
-- `pg_stat_user_tables` for access patterns
-
-**Example:**
-```
-postgresql://analyst:secret@db.example.com:5432/analytics
-```
+The agent ships with built-in support for **Snowflake** and **DuckDB**. Community platforms (PostgreSQL, Databricks, MySQL, etc.) can be added via the platform registry -- see [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ---
 
@@ -77,45 +49,6 @@ snowflake://jdoe:p@ssw0rd@xy12345.us-east-1/ANALYTICS/PUBLIC?warehouse=COMPUTE_W
 
 ---
 
-## Databricks (Unity Catalog)
-
-**Connection format:**
-```
-databricks://token:ACCESS_TOKEN@workspace-host/catalog?http_path=/sql/1.0/warehouses/abc123
-```
-
-**Parameters:**
-| Parameter | Required | Default | Env Var |
-|-----------|----------|---------|---------|
-| host | Yes | -- | `DATABRICKS_HOST` |
-| token | Yes | -- | `DATABRICKS_TOKEN` |
-| catalog | No | main | `DATABRICKS_CATALOG` |
-| http_path | Yes | -- | `DATABRICKS_HTTP_PATH` |
-
-**Driver:** `pip install databricks-sql-connector`
-
-**Read-only enforcement:** Application-level SQL validation.
-
-**Capabilities (beyond ANSI SQL):**
-- Unity Catalog lineage (`system.access.table_lineage`)
-- Column-level lineage
-- Audit logs (`system.access.audit`)
-- Compute usage patterns
-- Tag coverage (table and column tags)
-- Delta Lake freshness (`DESCRIBE HISTORY`)
-- Delta schema evolution tracking
-- Delta file statistics
-- Table metadata via `DESCRIBE DETAIL`
-
-**Suite:** `databricks` (extends common with 11 platform-native tests)
-
-**Example:**
-```
-databricks://token:dapi12345@adb-1234567890.1.azuredatabricks.net/my_catalog?http_path=/sql/1.0/warehouses/abc123
-```
-
----
-
 ## DuckDB
 
 **Connection format:**
@@ -149,14 +82,22 @@ duckdb://:memory:
 
 ---
 
+## Community Platforms
+
+The following platforms are available as community contributions in `examples/community-suites/`. To use them, register the platform before running your assessment. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for details.
+
+| Platform | Example File | Suite |
+|----------|-------------|-------|
+| PostgreSQL | `examples/community-suites/postgresql.py` | CommonSuite |
+| Databricks | `examples/community-suites/databricks_register.py` + `databricks.py` | DatabricksSuite (native) |
+
+---
+
 ## Environment Variables
 
 All platforms support environment variable fallbacks. This is useful for CI/CD and when you don't want credentials in the connection string:
 
 ```bash
-# PostgreSQL
-export AIRD_CONNECTION_STRING="postgresql://user:pass@host/db"
-
 # Snowflake
 export SNOWFLAKE_USER="jdoe"
 export SNOWFLAKE_PASSWORD="secret"
@@ -164,12 +105,8 @@ export SNOWFLAKE_ACCOUNT="xy12345"
 export SNOWFLAKE_DATABASE="ANALYTICS"
 export SNOWFLAKE_WAREHOUSE="COMPUTE_WH"
 
-# Databricks
-export DATABRICKS_HOST="adb-123.azuredatabricks.net"
-export DATABRICKS_TOKEN="dapi12345"
-export DATABRICKS_HTTP_PATH="/sql/1.0/warehouses/abc123"
-
 # Assessment-specific
+export AIRD_CONNECTION_STRING="snowflake://..."
 export AIRD_CONTEXT="/path/to/context.yaml"
 export AIRD_THRESHOLDS="/path/to/thresholds.json"
 export AIRD_OUTPUT="json:report.json"
@@ -196,5 +133,3 @@ The assessment agent needs **read-only** access to:
 |----------|--------|---------|
 | Snowflake | `SNOWFLAKE.ACCOUNT_USAGE.*` | Access history, query history, masking policies |
 | Snowflake | `SNOWFLAKE.INFORMATION_SCHEMA.COPY_HISTORY` | Ingestion error rates |
-| Databricks | `system.access.*` | Lineage, audit logs |
-| Databricks | Delta history | Schema evolution, freshness |

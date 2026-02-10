@@ -37,16 +37,9 @@ Ask the user for their database connection details. You need:
 - **Connection string** in the format `<platform>://user:pass@host/database`
 - Or ask them which platform they use and help them construct it
 
-Supported platforms and their drivers:
+Supported platforms, connection formats, and driver install commands are maintained in a single reference: `skills/references/platforms.md`. Read that file for the full list. The platform registry in `agent/platforms.py` is the code-level single source of truth.
 
-| Platform | Connection Format | Driver Install |
-|---|---|---|
-| PostgreSQL | `postgresql://user:pass@host:5432/dbname` | `pip install psycopg2-binary` |
-| Snowflake | `snowflake://user:pass@account/database/schema?warehouse=WH&role=ROLE` | `pip install snowflake-connector-python` |
-| Databricks | `databricks://token:ACCESS_TOKEN@host/catalog?http_path=...` | `pip install databricks-sql-connector` |
-| DuckDB | `duckdb://path/to/file.db` | `pip install duckdb` |
-
-If the driver is not installed, tell the user the exact pip command. If they provide environment variables instead of a connection string, that works too.
+If the driver is not installed, tell the user the exact pip command from the reference. If they provide environment variables instead of a connection string, that works too.
 
 **Before connecting**, ensure the assessment tool is set up:
 
@@ -96,7 +89,7 @@ python -m agent.cli assess \
 Options:
 - Add `--schema <name>` to scope to specific schemas
 - Add `--compare` to auto-compare against the previous run
-- Add `--suite snowflake` or `--suite databricks` to force a specific suite
+- Add `--suite snowflake` to force the Snowflake-native suite
 - Add `--context <path>` to load a saved user context YAML file
 - Add `--interactive` / `-i` to enable structured question output
 
