@@ -49,6 +49,17 @@ These factors apply to any data system powering AI applications, regardless of t
 - [Factor 4: Correlated](content/factor-04-correlated.md)
 - [Factor 5: Compliant](content/factor-05-compliant.md)
 
+## Reference guide
+### What exactly do you mean by "AI system"?
+
+An AI system is one that performs **inference** -- it accepts inputs (data values, feature vectors, prompts, documents), applies a learned function shaped by prior inputs (training data), and produces outputs (predictions, classifications, generated content, actions). If there is no inference, it is not an AI system.
+
+The boundary of the AI system is the model and its inference layer. Everything outside that boundary -- data ingestion, transformation, feature engineering, storage, serving -- belongs to the **data layer**, a separate system with its own responsibilities. The data layer's job is to ensure that what crosses the boundary is fit for consumption. This separation of concerns provides a few key benefits:
+* When the data layer satisfies the factors of AI-readiness, new AI consumers can be added without re-engineering data infrastructure.
+* Data readiness can be assessed and improved independently of any specific model or AI architecture.
+* Each system is accountable to its own contract -- data teams own data quality, ML teams own model performance, and failures can be isolated to one side of the boundary.
+
+Our definition is intentionally broad and architecture-agnostic. AI systems may differ in architecture, autonomy, and risk profile, but they share the same fundamental structure: data in, learned function applied, output produced. 
 
 ## Related Resources
 
