@@ -1,1 +1,0 @@
-@jacobprall - Jacob Prall, Snowflake

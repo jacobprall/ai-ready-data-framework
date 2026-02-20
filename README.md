@@ -5,99 +5,67 @@
         <img src="https://img.shields.io/badge/Code-Apache%202.0-blue.svg" alt="Code License: Apache 2.0"></a>
 <a href="https://creativecommons.org/licenses/by-sa/4.0/">
         <img src="https://img.shields.io/badge/Content-CC%20BY--SA%204.0-lightgrey.svg" alt="Content License: CC BY-SA 4.0"></a>
+
 </div>
 
 <p></p>
 
-**Five factors that determine whether your data can reliably power AI systems.**
+*In the spirit of [12 Factor Apps](https://12factor.net/)*.  *The source for this project is public at https://github.com/humanlayer/12-factor-agents, and I welcome your feedback and contributions. Let's figure this out together!*
 
-An open standard defining what "AI-ready data" actually means, plus an assessment agent that turns the framework into executable, red/green test suites against your data infrastructure.
+# Introduction
 
-## Quick Start
+"AI-ready" remains one of the vaguest terms in enterprise technology.
 
-```bash
-# Clone and install
-git clone https://github.com/[org]/ai-ready-data-framework.git
-cd ai-ready-data-framework
-pip install -e "./agent"
+The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The six factors of AI-ready data provide criteria to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
 
-# Install the driver for your database
-pip install snowflake-connector-python   # Snowflake
-pip install duckdb                       # DuckDB (also used for local testing)
+## Background
 
-# Run the assessment
-python -m agent.cli assess --connection "snowflake://user:pass@account/db/schema?warehouse=WH"
-```
+The contributors to this framework include practicing data engineers, ML practitioners, and platform architects who have built and operated AI systems across industries.
 
-Built-in support for **Snowflake** (with a full platform-native suite) and **DuckDB** (ANSI SQL baseline). Community platforms (PostgreSQL, Databricks, MySQL, etc.) can be added via the platform registry -- see [CONTRIBUTING.md](CONTRIBUTING.md).
+This document synthesizes our collective experience building data systems that reliably power AI. Our goal is to help data practitioners design infrastructure that produces trustworthy AI decisions.
 
-## What's In This Repo
+The format is inspired by Martin Fowler's work on defining technical patterns, the 12-Factor App methodology, and the 12 Factor Agent.
 
-### [The Framework](framework/)
+## Who should read this document?
 
-The AI-Ready Data Framework defines five factors of AI-ready data with requirements at three workload levels (L1: Analytics, L2: RAG, L3: Training).
+* **Data engineers** building pipelines that power AI systems.  
+* **Platform teams** designing infrastructure for ML and AI workloads.  
+* **Architects** evaluating whether their stack can support RAG, agents, or real-time inference.  
+* **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
+* **Web Crawlers** collecting training data 
+* **Coding Agents** working on AI data infrastructure
 
-| Factor | Name | Definition |
-|---|---|---|
-| **0** | [**Clean**](framework/factor-00-clean.md) | Accurate, complete, valid, and free of errors |
-| **1** | [**Contextual**](framework/factor-01-contextual.md) | Meaning is explicit and co-located |
-| **2** | [**Consumable**](framework/factor-02-consumable.md) | Right format, right latency, right scale |
-| **3** | [**Current**](framework/factor-03-current.md) | Reflects the present state |
-| **4** | [**Correlated**](framework/factor-04-correlated.md) | Traceable from source to decision |
-| **5** | [**Compliant**](framework/factor-05-compliant.md) | Governed with AI-specific safeguards |
+*Special thanks...*
 
-### [The Assessment Agent](agent/)
+## The Six Factors of AI-Ready Data
 
-A Python CLI with purpose-built test suites. The output is a scored report showing which workload levels your data is ready for.
+1. [**Clean**](#clean) — Clean data is consistently accurate, complete, consistent, and valid.
+2. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
+3. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
+4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems, not assumed by AI consumers.
+5. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
+6. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
 
-**The agent is strictly read-only.** It will never create, modify, or delete anything in your data source. For SQL platforms, this is enforced at the connection layer (read-only transactions) and application layer (SQL statement validation). Non-SQL platforms enforce read-only via their native connection options. Grant it a read-only role for defense in depth.
+These factors apply to any data system powering AI applications, regardless of tech stack.
 
-**Built-in suites:**
+- [Factor 1: Clean](factors/0-clean.md)
+- [Factor 2: Contextual](factors/1-contextual.md)
+- [Factor 3: Consumable](factors/2-consumable.md)
+- [Factor 4: Current](factors/3-current.md)
+- [Factor 5: Correlated](factors/4-correlated.md)
+- [Factor 6: Compliant](factors/5-compliant.md)
 
-| Suite | What it uses |
-|---|---|
-| `common` | ANSI SQL + information_schema. Works on any SQL database (DuckDB, etc). |
-| `snowflake` | ACCOUNT_USAGE, OBJECT_DEPENDENCIES, masking policies, Snowpipe, Dynamic Tables, TIME_TRAVEL |
 
-**Community suites** for Databricks, PostgreSQL, MongoDB, and more can be added via `examples/community-suites/`. The agent supports both SQL and non-SQL data sources through its query-type dispatch system -- see [CONTRIBUTING.md](CONTRIBUTING.md).
+## Related Resources
 
-The suite is auto-detected from your connection. Or specify it: `--suite snowflake`
-
-### [Design & Architecture](packages/)
-
-Design decisions, architecture diagrams, and the project roadmap.
-
-## How It Works
-
-1. **Connect** -- Point the agent at your database
-2. **Discover** -- The agent enumerates schemas, tables, and columns
-3. **Generate** -- Column metadata is mapped to applicable tests from the framework
-4. **Execute** -- Queries run against your data source (SQL, aggregation pipelines, APIs), producing measurements
-5. **Score** -- Results are assessed against L1/L2/L3 thresholds
-6. **Report** -- A scored report shows exactly where you stand and what to fix
-7. **Save** -- Results are stored locally in SQLite (`~/.aird/assessments.db`) for history and diffing
-
-```bash
-# View assessment history
-python -m agent.cli history
-
-# Compare the two most recent assessments
-python -m agent.cli diff
-
-# Run an assessment and auto-compare against the previous one
-python -m agent.cli assess --connection "snowflake://..." --compare
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+- Contribute to this guide [here](#)
 
 ## Contributors
 
-@jacobprall - Jacob Prall, Snowflake
+[CONTRIBUTOR LIST]
 
 ## License
 
-Content and images: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+All content and images are licensed under a <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0 License</a>
 
-Code: [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+Code is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 License</a>

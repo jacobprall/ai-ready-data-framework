@@ -1,0 +1,252 @@
+# requirements/index.yaml — Canonical index of all requirements
+#
+# All checks return a `value` column (float, 0-1).
+# workload: [serving] | [training] | [serving, training] — when the requirement applies
+# direction lives in meta.yaml per requirement
+
+requirements:
+  # --- Factor 0: Clean ---
+  data_completeness:
+    workload: [serving, training]
+    description: Fraction of null values across scoped fields
+
+  uniqueness:
+    workload: [serving, training]
+    description: Fraction of duplicate records across scoped key columns
+
+  schema_conformity:
+    workload: [serving, training]
+    description: Fraction of records that conform to the declared schema, including correct data types, required fields present, and structural rules satisfied
+
+  cross_field_consistency:
+    workload: [serving, training]
+    description: Fraction of records where logically related fields are mutually consistent per declared cross-field rules
+
+  distribution_conformity:
+    workload: [training]
+    description: Fraction of features whose statistical distributions conform to declared baseline distributions within tolerance thresholds
+
+  value_range_validity:
+    workload: [serving, training]
+    description: Fraction of numeric field values that fall within declared valid ranges or domain boundaries
+
+  categorical_validity:
+    workload: [serving, training]
+    description: Fraction of categorical field values that belong to a declared controlled vocabulary or code set
+
+  referential_integrity:
+    workload: [serving, training]
+    description: Fraction of foreign-key or cross-dataset reference values that successfully resolve to valid target records
+
+  outlier_prevalence:
+    workload: [training]
+    description: Fraction of records containing values flagged as statistical outliers beyond declared distance thresholds
+
+  syntactic_validity:
+    workload: [serving, training]
+    description: Fraction of raw data records that parse without structural errors, including well-formed serialization and correct delimiters
+
+  referential_accuracy:
+    workload: [serving, training]
+    description: Fraction of field values verified as correct against an authoritative reference or ground-truth source
+
+  encoding_validity:
+    workload: [serving, training]
+    description: Fraction of text field values free of encoding errors, garbled characters, or Unicode replacement characters
+
+  # --- Factor 1: Contextual ---
+  semantic_documentation:
+    workload: [serving, training]
+    description: Fraction of objects with machine-readable semantic descriptions
+
+  relationship_declaration:
+    workload: [serving, training]
+    description: Fraction of cross-entity references with explicit, machine-readable relationship declarations
+
+  entity_identifier_declaration:
+    workload: [serving, training]
+    description: Fraction of entities or datasets with explicitly declared primary or natural key definitions
+
+  temporal_scope_declaration:
+    workload: [serving, training]
+    description: Fraction of datasets with declared temporal validity windows (effective dates, as-of dates, or valid-time ranges)
+
+  schema_type_coverage:
+    workload: [serving, training]
+    description: Fraction of data fields with explicitly declared, machine-readable data types
+
+  business_glossary_linkage:
+    workload: [serving, training]
+    description: Fraction of data fields linked to a business glossary or authoritative term definition
+
+  constraint_declaration:
+    workload: [serving, training]
+    description: Fraction of data fields with explicitly declared constraints (nullability, uniqueness, valid ranges, or patterns)
+
+  unit_of_measure_declaration:
+    workload: [serving, training]
+    description: Fraction of numeric fields with explicit unit of measure declarations
+
+  # --- Factor 2: Consumable ---
+  access_optimization:
+    workload: [serving, training]
+    description: Fraction of large tables with clustering keys
+
+  search_optimization:
+    workload: [serving]
+    description: Fraction of tables with search optimization enabled
+
+  serving_latency_compliance:
+    workload: [serving]
+    description: Fraction of data serving endpoints meeting their defined latency SLA at p99
+
+  embedding_coverage:
+    workload: [serving]
+    description: Fraction of unstructured data assets with pre-computed vector embeddings available for retrieval
+
+  feature_materialization_coverage:
+    workload: [serving, training]
+    description: Fraction of ML features pre-materialized in both online and offline serving stores
+
+  native_format_availability:
+    workload: [serving, training]
+    description: Fraction of datasets stored in consumption-ready formats without requiring runtime format conversion
+
+  vector_index_coverage:
+    workload: [serving]
+    description: Fraction of embedding collections with a vector similarity index built and maintained
+
+  chunk_readiness:
+    workload: [serving]
+    description: Fraction of document assets pre-chunked to sizes aligned with target context windows
+
+  batch_throughput_sufficiency:
+    workload: [training]
+    description: Fraction of training data pipelines with I/O throughput sufficient to avoid compute idle time
+
+  point_lookup_availability:
+    workload: [serving]
+    description: Fraction of entity records accessible via low-latency key-based point lookups
+
+  retrieval_recall_compliance:
+    workload: [serving]
+    description: Fraction of vector search indexes achieving their target recall threshold at required query latency
+
+  embedding_dimension_consistency:
+    workload: [serving]
+    description: Fraction of embedding collections with uniform dimensionality matching their consuming model's expected input
+
+  # --- Factor 3: Current ---
+  change_detection:
+    workload: [serving, training]
+    description: Fraction of tables with change tracking and streams enabled
+
+  data_freshness:
+    workload: [serving, training]
+    description: Fraction of data assets with a declared freshness SLA that are within their defined freshness window
+
+  propagation_latency_compliance:
+    workload: [serving, training]
+    description: Fraction of data pipelines where end-to-end propagation latency meets the defined freshness SLA
+
+  point_in_time_correctness:
+    workload: [training]
+    description: Fraction of feature datasets that support point-in-time joins preventing future data leakage
+
+  training_serving_parity:
+    workload: [serving, training]
+    description: Fraction of ML features with consistent computation logic between training (batch) and serving (real-time) paths
+
+  feature_refresh_compliance:
+    workload: [serving]
+    description: Fraction of served features updated within their defined staleness tolerance threshold
+
+  temporal_referential_integrity:
+    workload: [serving, training]
+    description: Fraction of records with valid, non-null event timestamps traceable to source system origination time
+
+  schema_evolution_tracking:
+    workload: [serving, training]
+    description: Fraction of data assets with automated schema change detection, version identifiers, and version history
+
+  incremental_update_coverage:
+    workload: [serving, training]
+    description: Fraction of data pipelines that use incremental processing (CDC or streaming) rather than full-reload extraction
+
+  # --- Factor 4: Correlated ---
+  data_provenance:
+    workload: [serving, training]
+    description: Fraction of datasets with documented source provenance including origin system, collection method, and upstream lineage
+
+  lineage_completeness:
+    workload: [serving, training]
+    description: Fraction of datasets with documented end-to-end lineage from source through transformations, at both dataset and field level
+
+  data_version_coverage:
+    workload: [training]
+    description: Fraction of datasets with immutable version identifiers enabling point-in-time state reconstruction
+
+  agent_attribution:
+    workload: [serving, training]
+    description: Fraction of data modifications with a recorded agent (person, system, or process) responsible for the change
+
+  pipeline_execution_audit:
+    workload: [serving, training]
+    description: Fraction of pipeline runs with immutable execution records capturing inputs, parameters, outputs, and completion status
+
+  dependency_graph_completeness:
+    workload: [serving, training]
+    description: Fraction of datasets with fully enumerated upstream and downstream dependency relationships
+
+  record_level_traceability:
+    workload: [serving, training]
+    description: Fraction of records with a unique correlation identifier enabling trace-back to their originating source record
+
+  impact_analysis_capability:
+    workload: [serving, training]
+    description: Fraction of datasets for which the downstream impact of a schema or content change can be automatically enumerated
+
+  transformation_documentation:
+    workload: [serving, training]
+    description: Fraction of data transformations with documented logic, inputs, and outputs
+
+  # --- Factor 5: Compliant ---
+  classification:
+    workload: [serving, training]
+    description: Fraction of objects with governance tags applied
+
+  field_masking:
+    workload: [serving, training]
+    description: Fraction of PII columns with masking policies applied
+
+  access_audit_coverage:
+    workload: [serving, training]
+    description: Fraction of AI data access events captured in immutable audit logs
+
+  bias_testing_coverage:
+    workload: [training]
+    description: Fraction of training datasets that have undergone statistical bias testing prior to AI consumption
+
+  purpose_limitation:
+    workload: [serving, training]
+    description: Fraction of data access paths with declared permitted AI processing purposes and enforced purpose-based authorization
+
+  license_compliance:
+    workload: [serving, training]
+    description: Fraction of externally sourced datasets with documented and valid usage licenses permitting AI training
+
+  demographic_representation:
+    workload: [training]
+    description: Fraction of training datasets with measured and documented demographic distribution relative to target population
+
+  consent_coverage:
+    workload: [serving, training]
+    description: Fraction of personal data records with documented and valid legal basis for AI-specific processing
+
+  retention_policy:
+    workload: [serving, training]
+    description: Fraction of datasets with defined and enforced data retention and deletion schedules
+
+  anonymization_effectiveness:
+    workload: [serving, training]
+    description: Fraction of anonymized datasets with measured re-identification risk at or below defined thresholds
