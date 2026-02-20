@@ -4,11 +4,11 @@
 
 ## Why It Matters for AI
 
-Models have no concept of time. Every input is treated as ground truth. When a model receives stale data, it doesn't produce a "stale answer" — it produces a confident, wrong one. The staleness is invisible in the output.
+Models have no concept of time. Every input is treated as ground truth. When a model receives stale data, it doesn't produce a "stale answer", it produces a confident, wrong one. The staleness is invisible in the output.
 
-Traditional analytics tolerates staleness through convention: "this dashboard refreshes nightly," "that report uses yesterday's data." Humans adjust their interpretation accordingly. AI systems cannot. An agent answering "what's my current balance?" will state yesterday's number as fact.
+Traditional analytics tolerates staleness through convention: "this dashboard refreshes nightly," "that report uses yesterday's data." Humans adjust their interpretation accordingly. AI systems cannot. 
 
-Freshness must be enforced by infrastructure:
+Thus, freshness must be enforced by infrastructure through mechanisms like:
 - **Change tracking** captures when data changes
 - **Streams** propagate changes incrementally
 - **Materialized views** maintain derived data automatically
