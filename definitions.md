@@ -6,9 +6,9 @@ Canonical definitions for the AI-Ready Data project. A short summary appears in 
 
 ## AI-ready data
 
-**AI-ready data** is data that meets the criteria of the six factors (Clean, Contextual, Consumable, Current, Correlated, Compliant) for the **workload (use case)** you target. The factors define what the data layer must provide so that what crosses the boundary into the AI system is fit for consumption.
+**AI-ready data** is data that meets the requirements of the six factors (Clean, Contextual, Consumable, Current, Correlated, Compliant) for the **workload (use case)** you target. The factors define what the data layer must provide so that what crosses the boundary into the AI system is fit for consumption.
 
-Whether data is "AI-ready" is therefore relative to your use case. We use three workloads: descriptive analytics and BI, RAG and retrieval systems, and ML model training and fine-tuning. In tables and config these are referred to by the short names **L1**, **L2**, and **L3** (ordered by strictness of requirements, not by maturity). The same dataset may be ready for analytics (L1) but not yet for training (L3).
+Whether data is "AI-ready" is therefore relative to your use case. We use two workloads: serving and training.
 
 ---
 
@@ -20,7 +20,7 @@ An **AI system** performs inference: it accepts inputs, applies a learned functi
 
 ## Data product
 
-A **data product** is a named, bounded set of data assets maintained by a defined owner to serve a specific business function. It is the primary unit of assessment. The agent evaluates data products against the six factors; a platform's AI-readiness is the aggregate readiness of its data products.
+A **data product** is a named, bounded set of data assets maintained by a defined owner to serve a specific business function. It is the primary unit of assessment. Agents can evaluate data products against the six factors.
 
 A data product has a **name** (user-declared, e.g. "customer_360"), an optional **owner** (team or person), a set of **assets** (tables, schemas, or patterns), and an optional **target workload** (per-product override of L1/L2/L3). When no data products are defined, the agent treats all discovered assets as a single unnamed product.
 
@@ -28,7 +28,7 @@ A data product has a **name** (user-declared, e.g. "customer_360"), an optional 
 
 ## Data asset
 
-A **data asset** is a concrete object within a data product: e.g. a table and column in a relational system, a collection and field in a document store, or an index in a search engine. Checks are run *against* data assets; results roll up to the data product level. Some checks also evaluate **platform capabilities** (e.g. whether the platform exposes lineage, masking, or freshness metadata).
+A **data asset** is a concrete object within a data product: e.g. a table and column in a relational system, a collection and field in a document store, or an index in a search engine. 
 
 ---
 
