@@ -28,8 +28,6 @@ This document synthesizes our collective experience building data systems that r
 * **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
 * **Coding Agents** building the data infrastructure they will eventually consume
 
-*Special thanks...*
-
 ## The Six Factors of AI-Ready Data
 
 0. [**Clean**](factors/0-clean.md) — Clean data is consistently accurate, complete, consistent, and valid.
