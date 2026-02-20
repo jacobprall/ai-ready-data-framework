@@ -32,12 +32,12 @@ This document synthesizes our collective experience building data systems that r
 
 ## The Six Factors of AI-Ready Data
 
-1. [**Clean**](#clean) — Clean data is consistently accurate, complete, consistent, and valid.
-2. [**Contextual**](#contextual) — Contextual data carries canonical semantics; meaning is explicit and co-located.
-3. [**Consumable**](#consumable) — Consumable data is served in the right format and at the right latencies for AI workloads.
-4. [**Current**](#current) — Current data reflects the present state with freshness enforced by systems, not assumed by AI consumers.
-5. [**Correlated**](#correlated) — Correlated data is traceable from source to every decision it informs.
-6. [**Compliant**](#compliant) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
+0. [**Clean**](factors/0-clean.md) — Clean data is consistently accurate, complete, consistent, and valid.
+1. [**Contextual**](factors/1-contextual.md) — Contextual data carries canonical semantics; meaning is explicit and co-located.
+2. [**Consumable**](factors/2-consumable.md) — Consumable data is served in the right format and at the right latencies for AI workloads.
+3. [**Current**](factors/3-current.md) — Current data reflects the present state with freshness enforced by systems, not assumed by AI consumers.
+4. [**Correlated**](factors/4-correlated.md) — Correlated data is traceable from source to every decision it informs.
+5. [**Compliant**](factors/5-compliant.md) — Compliant data meets regulatory requirements through enforced access controls, clear ownership, and auditable AI-specific safeguards.
 
 These factors apply to any data system powering AI applications, regardless of tech stack.
 
@@ -49,7 +49,8 @@ The factor markdown files above describe the *why* and *what* of each factor in 
 
 ## Related Resources
 
-- Contribute to this guide [here](#)
+- [A Brief History of Data](factors/history-of-data.md)
+- Contribute to this framework
 
 ## Contributors
 
