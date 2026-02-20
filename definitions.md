@@ -34,7 +34,7 @@ A **data asset** is a concrete object within a data product: e.g. a table and co
 
 ## Workloads (use cases)
 
-Requirements differ by **use case**: what you are building (serving  or training) determines how strict the requirements are. We define three workloads.
+Requirements differ by **use case**: what you are building (serving  or training) determines how strict the requirements are. We define two workload categories.
 
 Requirements and thresholds are defined per factor and per workload. Meeting a stricter workload implies meeting the less strict ones for that requirement (additivity).
 

@@ -41,7 +41,7 @@ These factors apply to any data system powering AI applications, regardless of t
 
 ## Requirements
 
-Each factor is backed by a set of measurable **requirements** — specific criteria that can be evaluated against your data platform. The full canonical list lives in [`factors/requirements.yaml`](factors/requirements.yaml).
+Each factor is backed by a set of measurable **requirements** — specific criteria that can be evaluated against your data and platform. The full canonical list lives in [`factors/requirements.yaml`](factors/requirements.yaml).
 
 The factor markdown files above describe the *why* and *what* of each factor in prose. The requirements file provides the machine-readable counterpart: every requirement has a unique key, a description, and a `workload` tag indicating whether it applies to `serving`, `training`, or both. All tests should be evaluated against a threshold and return a normalized score between 0 and 1, making it straightforward to build automated assessments or dashboards on top of the framework. 
 
