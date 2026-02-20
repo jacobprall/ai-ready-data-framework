@@ -10,13 +10,9 @@
 
 <p></p>
 
-*In the spirit of [12 Factor Apps](https://12factor.net/)*.  *The source for this project is public at https://github.com/humanlayer/12-factor-agents, and I welcome your feedback and contributions. Let's figure this out together!*
-
 # Introduction
 
-"AI-ready" remains one of the vaguest terms in enterprise technology.
-
-The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The six factors of AI-ready data provide criteria to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
+The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The six factors of AI-ready data provide criteria and requirements to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
 
 ## Background
 
@@ -24,16 +20,13 @@ The contributors to this framework include practicing data engineers, ML practit
 
 This document synthesizes our collective experience building data systems that reliably power AI. Our goal is to help data practitioners design infrastructure that produces trustworthy AI decisions.
 
-The format is inspired by Martin Fowler's work on defining technical patterns, the 12-Factor App methodology, and the 12 Factor Agent.
-
 ## Who should read this document?
 
 * **Data engineers** building pipelines that power AI systems.  
 * **Platform teams** designing infrastructure for ML and AI workloads.  
 * **Architects** evaluating whether their stack can support RAG, agents, or real-time inference.  
 * **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
-* **Web Crawlers** collecting training data 
-* **Coding Agents** working on AI data infrastructure
+* **Coding Agents** building the data infrastructure they will eventually consume
 
 *Special thanks...*
 
@@ -48,13 +41,11 @@ The format is inspired by Martin Fowler's work on defining technical patterns, t
 
 These factors apply to any data system powering AI applications, regardless of tech stack.
 
-- [Factor 1: Clean](factors/0-clean.md)
-- [Factor 2: Contextual](factors/1-contextual.md)
-- [Factor 3: Consumable](factors/2-consumable.md)
-- [Factor 4: Current](factors/3-current.md)
-- [Factor 5: Correlated](factors/4-correlated.md)
-- [Factor 6: Compliant](factors/5-compliant.md)
+## Requirements
 
+Each factor is backed by a set of measurable **requirements** — specific criteria that can be evaluated against your data platform. The full canonical list lives in [`factors/requirements.yaml`](factors/requirements.yaml).
+
+The factor markdown files above describe the *why* and *what* of each factor in prose. The requirements file provides the machine-readable counterpart: every requirement has a unique key, a description, and a `workload` tag indicating whether it applies to `serving`, `training`, or both. All checks return a normalized score between 0 and 1, making it straightforward to build automated assessments or dashboards on top of the framework.
 
 ## Related Resources
 
