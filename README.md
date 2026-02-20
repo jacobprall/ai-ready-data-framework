@@ -12,7 +12,7 @@
 
 # Introduction
 
-The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The six factors of AI-ready data provide criteria and requirements to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
+The **AI-Ready Data Framework** is an open standard that defines what "AI-ready" actually means. The five factors of AI-ready data provide criteria and requirements to help you evaluate your data, pipelines, and platforms against the demands of AI workloads. Use this framework to assess where you stand and prioritize what matters most for your specific AI ambitions.
 
 ## Background
 
@@ -28,7 +28,7 @@ This document synthesizes our collective experience building data systems that r
 * **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
 * **Coding Agents** building the data infrastructure they will eventually consume
 
-## The Six Factors of AI-Ready Data
+## The Five (+1) Factors of AI-Ready Data
 
 0. [**Clean**](factors/0-clean.md) — Clean data is consistently accurate, complete, consistent, and valid.
 1. [**Contextual**](factors/1-contextual.md) — Contextual data carries canonical semantics; meaning is explicit and co-located.
