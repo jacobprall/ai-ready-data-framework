@@ -18,7 +18,7 @@ The **AI-Ready Data Framework** is an open standard that defines what "AI-ready"
 
 The contributors to this framework include practicing data engineers, ML practitioners, and platform architects who have built and operated AI systems across industries.
 
-This document synthesizes our collective experience building data systems that reliably power AI. Our goal is to help data practitioners design infrastructure that produces trustworthy AI decisions.
+This document synthesizes our collective experience building data infrastructure that can reliably power AI. Our goal is to help data practitioners design infrastructure that produces trustworthy AI decisions.
 
 ## Who should read this document?
 
@@ -43,7 +43,7 @@ These factors apply to any data system powering AI applications, regardless of t
 
 Each factor is backed by a set of measurable **requirements** — specific criteria that can be evaluated against your data platform. The full canonical list lives in [`factors/requirements.yaml`](factors/requirements.yaml).
 
-The factor markdown files above describe the *why* and *what* of each factor in prose. The requirements file provides the machine-readable counterpart: every requirement has a unique key, a description, and a `workload` tag indicating whether it applies to `serving`, `training`, or both. All checks return a normalized score between 0 and 1, making it straightforward to build automated assessments or dashboards on top of the framework.
+The factor markdown files above describe the *why* and *what* of each factor in prose. The requirements file provides the machine-readable counterpart: every requirement has a unique key, a description, and a `workload` tag indicating whether it applies to `serving`, `training`, or both. All tests should be evaluated against a threshold and return a normalized score between 0 and 1, making it straightforward to build automated assessments or dashboards on top of the framework. 
 
 ## Related Resources
 

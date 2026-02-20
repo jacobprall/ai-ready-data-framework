@@ -22,7 +22,7 @@ An **AI system** performs inference: it accepts inputs, applies a learned functi
 
 A **data product** is a named, bounded set of data assets maintained by a defined owner to serve a specific business function. It is the primary unit of assessment. Agents can evaluate data products against the six factors.
 
-A data product has a **name** (user-declared, e.g. "customer_360"), an optional **owner** (team or person), a set of **assets** (tables, schemas, or patterns), and an optional **target workload** (per-product override of L1/L2/L3). When no data products are defined, the agent treats all discovered assets as a single unnamed product.
+A data product has a **name** (user-declared, e.g. "customer_360"), an optional **owner** (team or person), a set of **assets** (tables, schemas, or patterns), and an optional **target workload**. When no data products are defined, the agent treats all discovered assets as a single unnamed product.
 
 ---
 
