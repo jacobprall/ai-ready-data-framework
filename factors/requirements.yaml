@@ -5,55 +5,6 @@
 # direction lives in meta.yaml per requirement
 
 requirements:
-  # --- Factor 0: Clean ---
-  data_completeness:
-    workload: [serving, training]
-    description: Fraction of null values across scoped fields
-
-  uniqueness:
-    workload: [serving, training]
-    description: Fraction of duplicate records across scoped key columns
-
-  schema_conformity:
-    workload: [serving, training]
-    description: Fraction of records that conform to the declared schema, including correct data types, required fields present, and structural rules satisfied
-
-  cross_field_consistency:
-    workload: [serving, training]
-    description: Fraction of records where logically related fields are mutually consistent per declared cross-field rules
-
-  distribution_conformity:
-    workload: [training]
-    description: Fraction of features whose statistical distributions conform to declared baseline distributions within tolerance thresholds
-
-  value_range_validity:
-    workload: [serving, training]
-    description: Fraction of numeric field values that fall within declared valid ranges or domain boundaries
-
-  categorical_validity:
-    workload: [serving, training]
-    description: Fraction of categorical field values that belong to a declared controlled vocabulary or code set
-
-  referential_integrity:
-    workload: [serving, training]
-    description: Fraction of foreign-key or cross-dataset reference values that successfully resolve to valid target records
-
-  outlier_prevalence:
-    workload: [training]
-    description: Fraction of records containing values flagged as statistical outliers beyond declared distance thresholds
-
-  syntactic_validity:
-    workload: [serving, training]
-    description: Fraction of raw data records that parse without structural errors, including well-formed serialization and correct delimiters
-
-  referential_accuracy:
-    workload: [serving, training]
-    description: Fraction of field values verified as correct against an authoritative reference or ground-truth source
-
-  encoding_validity:
-    workload: [serving, training]
-    description: Fraction of text field values free of encoding errors, garbled characters, or Unicode replacement characters
-
   # --- Factor 1: Contextual ---
   semantic_documentation:
     workload: [serving, training]

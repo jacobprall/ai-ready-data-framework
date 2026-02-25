@@ -28,9 +28,8 @@ This document synthesizes our collective experience building data infrastructure
 * **Data leaders** who need to assess organizational AI readiness and communicate gaps to their teams.
 * **Coding Agents** building the data infrastructure they will eventually consume
 
-## The Five (+1) Factors of AI-Ready Data
+## The Five Factors of AI-Ready Data
 
-0. [**Clean**](factors/0-clean.md) — Clean data is consistently accurate, complete, consistent, and valid.
 1. [**Contextual**](factors/1-contextual.md) — Contextual data carries canonical semantics; meaning is explicit and co-located.
 2. [**Consumable**](factors/2-consumable.md) — Consumable data is served in the right format and at the right latencies for AI workloads.
 3. [**Current**](factors/3-current.md) — Current data reflects the present state with freshness enforced by systems, not assumed by AI consumers.
